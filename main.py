@@ -193,7 +193,7 @@ class PollOption(object):
 irc_server        =  "irc.anonops.com"
 irc_port          =   6697
 irc_nickname      =  "wtfboom"
-irc_nickserv_pwd  =  "keksec69"         #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
+irc_nickserv_pwd  =  "============================================="         #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
 irc_channels      =  ["#bottest", "#bots"]
 
 timeout = 130
