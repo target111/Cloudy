@@ -48,16 +48,16 @@ class IRC_User(object):
 
     def connect(self, server):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.ssl = ssl.wrap_socket(self.sock)
+        self.irc_ssl = ssl.wrap_socket(self.sock)
 
-        ssl.connect(server.address, server.port)
-        ssl.settimeout(timeout)
+        self.irc_ssl.connect(server.address, server.port)
+        self.irc_ssl.settimeout(timeout)
 
         self.send("NICK " + self.nickname)
         self.send("USER " + self.nickname + " 0 * :HI IM FUN")
 
     def send(self, message):
-        self.ssl.send(message.encode("UTF-8") + "\r\n")
+        self.irc_ssl.send(message.encode("UTF-8") + "\r\n")
 
     def send_chan(self, message, channel):
         self.send("PRIVMSG " + channel + " :" + message)
@@ -72,7 +72,7 @@ class IRC_User(object):
         self.send("MODE " + self.nickname + " +B")
 
     def recieve(self):
-        recvd = self.ssl.recv(4096).decode("UTF8")
+        recvd = self.irc_ssl.recv(4096).decode("UTF8")
 
         #TODO: make this optional
         if recvd.find("PING") != -1:
@@ -126,9 +126,9 @@ class PollOption(object):
 
 irc_server        =  "irc.anonops.com"
 irc_port          =   6697
-irc_nickname      =  "wtfboom"
+irc_nickname      =  "wtfboom_beta"
 irc_nickserv_pwd  =  ""         #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
-irc_channels      =  ["#spam", "#bots"]
+irc_channels      =  ["#bottest", "#bots"]
 
 timeout = 130
 command_character = "="
@@ -159,7 +159,7 @@ print(ConsoleColors.OKBLUE + """
 bot = IRC_User(irc_nickname)
 server = IRC_Server(irc_server, irc_port)
 
-printEx("Connecting to IRC server: " + irc_server + ":" + irc_port, PrintType.Info)
+printEx("Connecting to IRC server: " + irc_server + ":" + str(irc_port), PrintType.Info)
 try:
     bot.connect(server)
 except Exception as e:
@@ -221,7 +221,7 @@ while True:
         for arg in argsTemp:
             if arg[:1] == "\"":
                 args_to_merge = args_to_merge
-                for arg2 in argsTemp[arg_index:]:
+                #for arg2 in argsTemp[arg_index:]:
 
             arg_index += 1
 
@@ -324,7 +324,7 @@ while True:
                                 break
                     if poll_voted:
                         bot.send_chan( "Sorry " + data.nickname + ", you already voted.", data.channel)
-                    else:
+                    #else:
                         #TODO: Announce
                 else:
                     bot.send_chan("No poll currently running." ,data.channel)
@@ -368,10 +368,10 @@ while True:
                 ThreadArt.start()
 
 
-        if cmd == "help":
-            if len(args) == 1:
+        #if cmd == "help":
+            #if len(args) == 1:
 
-            else:
-                if args[2] == "":
+            #else:
+                #if args[2] == "":
 
-                elif :
+                #elif :
