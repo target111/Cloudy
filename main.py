@@ -211,27 +211,9 @@ class ThreadPoll(Thread):
 while True:
 
     data = bot.recieve()
-
-    if data.message[:len(command_character)] == command_character:
-
-        argsTemp = data.message[len(command_character):].split(' ')
-        args = []
-
-        arg_index = 0
-        for arg in argsTemp:
-            if arg[:1] == "\"":
-                args_to_merge = args_to_merge
-                #for arg2 in argsTemp[arg_index:]:
-
-            arg_index += 1
-
-        #TODO: Handle multiple arguments in quotes as one argument
-        args = argsTemp
-
-        cmd = args[0].lower()
-
-
-
+    print(data)
+    if data.find(":=") and data.split()[4]==":=":
+        cmd=data.split()[4]
         if cmd == "version":
             bot.send_chan("Version :" + version, data.channel)
 
