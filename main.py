@@ -38,7 +38,7 @@ def printEx (message, type):
     elif type == PrintType.Info:
         print_type_str = ConsoleColors.OKBLUE + "[INFO]" + ConsoleColors.ENDC
 
-    print(print_type_str + " " + message + "\n")
+    print(print_type_str + " " + message)
 
 
 class IRC_Client(object):
@@ -54,7 +54,7 @@ class IRC_Client(object):
         self.irc_ssl.settimeout(timeout)
 
         self.send_raw("NICK " + self.nickname)
-        self.send_raw("USER " + self.nickname + " 0 * :HI IM FUN")
+        self.send_raw("USER " + self.nickname + " 0 * :HIIMFUN")
 
     def send_raw(self, message):
         self.irc_ssl.send((message + "\r\n").encode("UTF-8"))
@@ -82,7 +82,10 @@ class IRC_Client(object):
 
         print(raw)
 
-        sender = raw.split(" ")[0][1:]
+        if raw.split()[0] == "PING":
+            bot.send_raw("PONG " + raw.split()[1][1:])
+
+        sender = raw.split()[0][1:]
         command = raw.split(" ", 1)[1]
 
         return IRC_Data(sender, command)
@@ -98,7 +101,7 @@ class IRC_Server(object):
 class IRC_Data(object):
     def __init__(self, sender, command):
         self.sender = IRC_Entity(sender)
-        self.command = command
+        self.command = IRC_Command(command)
 
 class IRC_Command(object):
     def __init__(self, input):
@@ -109,9 +112,9 @@ class IRC_Command(object):
 
         elif input[:4] == "MODE":
             self.type = IRC_CommandType.Mode
-            self.channel = input.split()[1]
+            #print(input)
+            self.nickname = input.split()[1]
             self.mode = input.split()[2]
-            self.nickname = input.split()[3]
 
         elif input[:7] == "PRIVMSG" and not input.split(":")[1][:6] == "ACTION":
             self.type = IRC_CommandType.Message
@@ -132,6 +135,10 @@ class IRC_Command(object):
             self.notice_string = input.split()[1]
             self.message = input.split(":", 1)[1]
 
+        elif input.split()[1] == "NICK":
+            self.type = IRC_CommandType.Nick
+            self.nickname = input.split()[1]
+
         else:
             self.type = IRC_CommandType.Unknown
 
@@ -144,6 +151,7 @@ class IRC_CommandType(Enum):
     Action  = 4
     Invite  = 5
     Notice  = 6
+    Nick    = 7
 
 
 class IRC_Entity(object):
@@ -168,20 +176,14 @@ class IRC_User(object):
     def toString(self):
         return self.nickname + "!" + self.username + "@" + self.host
 
-'''
-class Poll(object):
-    def __init__(self, channel, nickname, description, options, time_started):
-        self.channel = channel
-        self.nickname = nickname
-        self.description = description
-        self.options = options
-        self.time_started = time_started
 
-class PollOption(object):
-    def __init__(self, description):
-        self.description = description
-        self.votes = []
-'''
+class FirstPingThread(Thread):
+    def run(self):
+        pingis = bot.irc_ssl.recv(9000).decode("UTF-8")
+        pingis = bot.irc_ssl.recv(9000).decode("UTF-8")
+        if pingis.split()[0] == "PING":
+            bot.send_raw("PONG " + pingis.split()[1][1:])
+
 
 #############################################################################################################
 #############################################################################################################
@@ -193,8 +195,8 @@ class PollOption(object):
 irc_server        =  "irc.anonops.com"
 irc_port          =   6697
 irc_nickname      =  "wtfboom"
-irc_nickserv_pwd  =  "============================================="         #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
-irc_channels      =  ["#bottest", "#bots"]
+irc_nickserv_pwd  =  "fy8tgheuty"         #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
+irc_channels      =  ["#bottest"]
 
 timeout = 130
 command_character = "="
@@ -233,6 +235,8 @@ except Exception as e:
     exit()
 
 printEx("Connection successful.", PrintType.Info)
+
+FirstPingThread().start()
 
 #Wait a bit
 time.sleep(2)
@@ -279,8 +283,45 @@ while True:
 
     data = bot.recieve()
 
-    if data.sender.type == IRC_EntityType.Client:
-        print(data.sender.entity.toString())
+    if data.sender.type == IRC_EntityType.Client and data.command.type == IRC_CommandType.Message:
+
+        #Treats multiple args in quotes as a single arg
+        args = []
+        args_temp = data.command.message.split()
+
+        arg_index = 0
+
+        while arg_index <= len(args_temp) - 1:
+
+            arg = args_temp[arg_index]
+            if arg[:1] == "\"":
+
+                if arg[-1:] == "\"":
+
+                    arg_temp = arg[1:-1]
+                    arg_index += 1
+
+                else:
+
+                    arg_temp = arg[arg_index][:1]
+                    arg_index += 1
+
+                    for arg2 in args_temp[arg_index:]:
+                        if arg2[1:] == "\"":
+                            arg_temp += " " + arg2[:-1]
+                        else:
+                            arg_temp += " " + arg2
+
+                        arg_index += 1
+
+            else:
+                arg_temp = arg
+
+            args.append(arg_temp)
+            arg_index += 1
+
+
+        print(args)
 
     '''
     data = bot.recieve()
