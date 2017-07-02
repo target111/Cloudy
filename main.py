@@ -41,7 +41,7 @@ def printEx (message, type):
     print(print_type_str + " " + message + "\n")
 
 
-class IRC_User(object):
+class IRC_Client(object):
 
     def __init__(self, nickname):
         self.nickname = nickname
@@ -50,59 +50,125 @@ class IRC_User(object):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.irc_ssl = ssl.wrap_socket(self.sock)
 
-        self.irc_ssl.connect(server.address, server.port)
+        self.irc_ssl.connect((server.address, server.port))
         self.irc_ssl.settimeout(timeout)
 
-        self.send("NICK " + self.nickname)
-        self.send("USER " + self.nickname + " 0 * :HI IM FUN")
+        self.send_raw("NICK " + self.nickname)
+        self.send_raw("USER " + self.nickname + " 0 * :HI IM FUN")
 
-    def send(self, message):
-        self.irc_ssl.send(message.encode("UTF-8") + "\r\n")
+    def send_raw(self, message):
+        self.irc_ssl.send((message + "\r\n").encode("UTF-8"))
 
-    def send_chan(self, message, channel):
-        self.send("PRIVMSG " + channel + " :" + message)
+    def send(self, message, channel):
+        self.send_raw("PRIVMSG " + channel + " :" + message)
+
+    def action(self, message, channel):
+        self.send("ACTION " + message, channel)
 
     def join(self, channel):
-        self.send("JOIN " + channel)
+        self.send_raw("JOIN " + channel)
 
     def authenticate_nickserv(self, password):
-        self.send("PRIVMSG NICKSERV IDENTIFY " + password)
+        self.send("IDENTIFY " + password, "NICKSERV")
 
-    def set_mode_bot(self):
-        self.send("MODE " + self.nickname + " +B")
+    def set_mode(self, nickname, mode):
+        self.send_raw("MODE " + nickname + " " + mode)
+
+    def recieve_raw(self):
+        return self.irc_ssl.recv(4096).decode("UTF8")
 
     def recieve(self):
-        recvd = self.irc_ssl.recv(4096).decode("UTF8")
+        raw = self.recieve_raw()
 
-        #TODO: make this optional
-        if recvd.find("PING") != -1:
-            self.send("PONG" + recvd.split(" ")[1])
+        print(raw)
 
-        nickname = recvd.split('!')[0][1:]
-        username = recvd.split('!')[1].split('@')[0]
-        host = recvd.split('@')[1].split(' ')[0]
-        channel = recvd.split(' ')[2]
-        message = recvd.split(':')[2]
+        sender = raw.split(" ")[0][1:]
+        command = raw.split(" ", 1)[1]
 
-        if (channel == self.nickname):
-            channel = nickname
-
-        data = IRC_Data(nickname, username, host, channel, message)
-        return data
+        return IRC_Data(sender, command)
 
 class IRC_Server(object):
     def __init__(self, address, port):
         self.address = address
         self.port = port
 
-class IRC_Data(object):
-    def __init__(self, nickname, username, host, channel, message):
-        self.nickname = nickname
-        self.username = username
-        self.host = host
-        self.channel = channel
-        self.message = message
+    def toString(self):
+        return self.address + ":" + self.port
 
+class IRC_Data(object):
+    def __init__(self, sender, command):
+        self.sender = IRC_Entity(sender)
+        self.command = command
+
+class IRC_Command(object):
+    def __init__(self, input):
+
+        if input[:4] == "JOIN":
+            self.type = IRC_CommandType.Join
+            self.channel = input[6:]
+
+        elif input[:4] == "MODE":
+            self.type = IRC_CommandType.Mode
+            self.channel = input.split()[1]
+            self.mode = input.split()[2]
+            self.nickname = input.split()[3]
+
+        elif input[:7] == "PRIVMSG" and not input.split(":")[1][:6] == "ACTION":
+            self.type = IRC_CommandType.Message
+            self.channel = input.split()[1]
+            self.message = input.split(":", 1)[1]
+
+        elif input[:7] == "PRIVMSG" and input.split(":")[1][:7] == "ACTION":
+            self.type = IRC_CommandType.Action
+            self.message = input.split(":", 1)[1][6:]
+
+        elif input [:7] == "INVITE":
+            self.type = IRC_CommandType.Invite
+            self.nickname = input.split()[1]
+            self.channel = input.split(":", 1)[1]
+
+        elif input[:6] == "NOTICE":
+            self.type = IRC_CommandType.Notice
+            self.notice_string = input.split()[1]
+            self.message = input.split(":", 1)[1]
+
+        else:
+            self.type = IRC_CommandType.Unknown
+
+
+class IRC_CommandType(Enum):
+    Unknown = 0
+    Join    = 1
+    Mode    = 2
+    Message = 3
+    Action  = 4
+    Invite  = 5
+    Notice  = 6
+
+
+class IRC_Entity(object):
+    def __init__(self, input):
+        if "!" in input and "@" in input:
+            self.type = IRC_EntityType.Client
+            self.entity = IRC_User(input)
+        else:
+            self.type = IRC_EntityType.Server
+            self.entity = input
+
+class IRC_EntityType(Enum):
+    Server = 0
+    Client = 1
+
+class IRC_User(object):
+    def __init__(self, input):
+        self.nickname = input.split("!")[0]
+        self.username = input.split("!")[1].split("@")[0]
+        self.host     = input.split("@")[1]
+
+    def toString(self):
+        return self.nickname + "!" + self.username + "@" + self.host
+
+'''
 class Poll(object):
     def __init__(self, channel, nickname, description, options, time_started):
         self.channel = channel
@@ -115,7 +181,7 @@ class PollOption(object):
     def __init__(self, description):
         self.description = description
         self.votes = []
-
+'''
 
 #############################################################################################################
 #############################################################################################################
@@ -126,8 +192,8 @@ class PollOption(object):
 
 irc_server        =  "irc.anonops.com"
 irc_port          =   6697
-irc_nickname      =  "wtfboom_beta"
-irc_nickserv_pwd  =  ""         #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
+irc_nickname      =  "wtfboom"
+irc_nickserv_pwd  =  "keksec69"         #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
 irc_channels      =  ["#bottest", "#bots"]
 
 timeout = 130
@@ -156,7 +222,7 @@ print(ConsoleColors.OKBLUE + """
           | $$
           |__/                                                            """ + ConsoleColors.ENDC)
 
-bot = IRC_User(irc_nickname)
+bot = IRC_Client(irc_nickname)
 server = IRC_Server(irc_server, irc_port)
 
 printEx("Connecting to IRC server: " + irc_server + ":" + str(irc_port), PrintType.Info)
@@ -175,7 +241,7 @@ time.sleep(2)
 printEx("Sending credentials for " + irc_nickname, PrintType.Info)
 
 bot.authenticate_nickserv(irc_nickserv_pwd)
-bot.set_mode_bot()
+bot.set_mode(bot.nickname, "+B")
 
 printEx("Credentials sent. Waiting for authentication...", PrintType.Info)
 
@@ -190,6 +256,7 @@ for channel in irc_channels:
 #############################################################################################################
 #############################################################################################################
 
+'''
 poll_threads = []
 
 class ThreadPoll(Thread):
@@ -205,15 +272,39 @@ class ThreadPoll(Thread):
             print("IM GONNA EAT YO ASS BOII")
 
         poll_threads.remove(self)
-
+'''
 
 #Main Loop
 while True:
 
     data = bot.recieve()
-    print(data)
-    if data.find(":=") and data.split()[4]==":=":
-        cmd=data.split()[4]
+
+    if data.sender.type == IRC_EntityType.Client:
+        print(data.sender.entity.toString())
+
+    '''
+    data = bot.recieve()
+
+    if data.message[:len(command_character)] == command_character:
+
+        argsTemp = data.message[len(command_character):].split(' ')
+        args = []
+
+        arg_index = 0
+        for arg in argsTemp:
+            if arg[:1] == "\"":
+                args_to_merge = args_to_merge
+                #for arg2 in argsTemp[arg_index:]:
+
+            arg_index += 1
+
+        #TODO: Handle multiple arguments in quotes as one argument
+        args = argsTemp
+
+        cmd = args[0].lower()
+
+
+
         if cmd == "version":
             bot.send_chan("Version :" + version, data.channel)
 
@@ -357,3 +448,4 @@ while True:
                 #if args[2] == "":
 
                 #elif :
+    '''
