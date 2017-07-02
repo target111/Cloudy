@@ -195,7 +195,7 @@ class FirstPingThread(Thread):
 irc_server        =  "irc.anonops.com"
 irc_port          =   6697
 irc_nickname      =  "wtfboom"
-irc_nickserv_pwd  =  "ushallnotpass"         #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
+irc_nickserv_pwd  =  ""         #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
 irc_channels      =  ["#bottest"]
 
 timeout = 130
@@ -290,35 +290,35 @@ while True:
         args_temp = data.command.message.split()
 
         arg_index = 0
-
         while arg_index <= len(args_temp) - 1:
 
             arg = args_temp[arg_index]
-            if arg[:1] == "\"":
+            if arg[:1] == "\"" or arg == "\"":
 
-                if arg[-1:] == "\"":
+                if arg[-1:] == "\"" and arg != "\"":
 
                     arg_temp = arg[1:-1]
                     arg_index += 1
 
                 else:
 
-                    arg_temp = arg[arg_index][:1]
+                    arg_temp = arg[1:]
                     arg_index += 1
 
                     for arg2 in args_temp[arg_index:]:
-                        if arg2[1:] == "\"":
+                        if arg2[-1:] == "\"" or arg2 == "\"":
                             arg_temp += " " + arg2[:-1]
+                            arg_index += 1
+                            break
                         else:
                             arg_temp += " " + arg2
-
-                        arg_index += 1
+                            arg_index += 1
 
             else:
                 arg_temp = arg
+                arg_index += 1
 
             args.append(arg_temp)
-            arg_index += 1
 
 
         print(args)
