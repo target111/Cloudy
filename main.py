@@ -212,7 +212,7 @@ while True:
 
     data = bot.recieve()
     print(data)
-    if data.find(":="):
+    if data.find(":=") and data.split()[4]==":=":
         cmd=data.split()[4]
         if cmd == "version":
             bot.send_chan("Version :" + version, data.channel)
