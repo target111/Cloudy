@@ -6,8 +6,9 @@ import time
 import random
 from threading import Thread
 from enum import Enum
-import os, itertools, sys
-import markovify
+import os
+import itertools
+import sys
 from pyfiglet import Figlet
 
 #############################################################################################################
@@ -60,6 +61,7 @@ def Color(string, fg, bg=None):
         return IRCFormat.Color + fg + string + IRCFormat.Color
     else:
         return IRCFormat.Color + fg + "," + bg + string + IRCFormat.Color
+
 
 class PrintType (Enum):
     Error = 1
@@ -125,7 +127,7 @@ class IRC_Client(object):
 
         print(raw)
 
-        if raw.find("PING") != -1:
+        if raw.split()[0] == "PING":
             bot.send_raw("PONG " + raw.split()[1][1:])
 
         sender = raw.split()[0][1:]
@@ -177,7 +179,7 @@ class IRC_Command(object):
             self.notice_string = input.split()[1]
             self.message = input.split(":", 1)[1]
 
-        elif input[:4] == "NICK":
+        elif input.split()[0] == "NICK":
             self.type = IRC_CommandType.Nick
             self.nickname = input.split()[1]
 
@@ -238,10 +240,13 @@ irc_server        =  "irc.anonops.com"
 irc_port          =   6697
 irc_nickname      =  "wtfboom"
 irc_nickserv_pwd  =  "fy8tgheuty"      #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
-irc_channels      =  ["#bottest"]
+irc_channels      =  ["#spam", "#bottest"]
 
 timeout = 130
 command_character = "="
+
+file_quotes = "quotes.txt"
+file_quotes_buffer = "quotes_buffer.txt"
 
 #TODO: Either use admin status as owner or load form config
 #TODO: Also, insecure. someone can set their nick to yours and quickly execute a command before nickserv changes their name
@@ -315,7 +320,11 @@ class SpamThread(Thread):
 
     def run(self):
         for i in range(times): #
-            bot.send(Format(Color(self.message + " | ", random.choice(IRCColors.all_colors), random.choice(IRCColors.all_colors)), [IRCFormat.Bold]).upper() * 40, self.channel)
+            fg = random.choice(IRCColors.all_colors)
+            bg = random.choice(IRCColors.all_colors)
+            while fg == bg:
+                bg = random.choice(IRCColors.all_colors)
+            bot.send(Format(Color(self.message + " | ", fg, bg), [IRCFormat.Bold]).upper() * 40, self.channel)
             time.sleep(1)
         spam_threads.remove(self)
 
@@ -375,14 +384,24 @@ while True:
                 bot.send("Version: " + version, data.command.channel)
 
 
+            if cmd == "die":
+                if data.sender.entity.nickname not in bot_owner:
+                    bot.send(prompt_priviledge_required, data.command.channel)
+                else:
+                    bot.send("oh...okay. :'(", data.command.channel)
+                    bot.exit()
+                    exit()
+
+
             if cmd == "restart":
                 if data.sender.entity.nickname not in bot_owner:
                     bot.send(prompt_priviledge_required, data.command.channel)
                 else:
                     bot.send("sure..", data.command.channel)
-                    os.execv(sys.executable, ['python3'] + "main.py")
+                    os.execv(sys.executable, ["python3"] + sys.argv)
                     bot.exit()
                     exit()
+
 
             if cmd == "spam":
                 try:
@@ -405,102 +424,91 @@ while True:
                 except:
                     bot.send("Use " + command_character + "spam <times> <message>", data.command.channel)
 
+
             if cmd == "quote":
                 try:
                     if args[1].lower() == "add":
                         if data.sender.entity.nickname not in bot_owner:
-                            quote = data.command.message.split('"')
-                            open("quotes_.txt", "a").write(quote[1] + "\n")
-                            bot.send("Quote will be added to the main list once an admin approves it. #", data.command.channel)
+                            open(file_quotes_buffer, "a").write(" ".join(args[2:]) + "\n")
+                            bot.send("Quote will be added to the main list once an admin approves it.", data.command.channel)
                         else:
-                            quote = data.command.message.split('"')
+                            open(file_quotes, "a").write(" ".join(args[2:]) + "\n")
                             bot.send("Quote added! Also cocks.", data.command.channel)
-                            open("quotes.txt", "a").write(quote[1] + "\n")
 
                     elif args[1].lower() == "count":
-                        with open("quotes.txt") as f:
+                        with open(file_quotes) as f:
+                            x = None
                             for i, l in enumerate(f):
                                 pass
                                 x = i
-                            bot.send("I have %r quotes" % x, data.command.channel)
+                            bot.send("I have " + str(x) + " quotes", data.command.channel)
 
                     elif args[1].lower() == "read":
-                        f=open("quotes.txt", "r").readlines()
+                        f = open(file_quotes, "r").readlines()
                         bot.send(f[int(args[2])], data.command.channel)
 
-                    try:
-                        if args[1].lower() == "approve":
-                            if data.sender.entity.nickname not in bot_owner:
-                                bot.send(prompt_priviledge_required, data.command.channel)
-                            else:
+                    elif args[1].lower() == "approve":
+                        if data.sender.entity.nickname not in bot_owner:
+                            bot.send(prompt_priviledge_required, data.command.channel)
+                        else:
+                            try:
                                 if args[2].lower() == "all":
-                                    f=open("quotes_.txt","r").readlines()
-                                    open("quotes_.txt", "w").close()
+                                    f = open(file_quotes_buffer, "r").readlines()
+                                    open(file_quotes_buffer, "w").close()
                                     for i in f:
-                                        open("quotes.txt","a").write(str(i))
+                                        open(file_quotes, "a").write(str(i))
                                         bot.send("All quotes approved!", data.command.channel)
                                 elif args[2].lower() == "show":
-                                    f=open("quotes_.txt","r").readlines()
-                                    quotenumber=-1
+                                    f = open("quotes_.txt", "r").readlines()
+                                    quotenumber = -1
                                     for i in f:
                                         i = i.split('\n')[0]
-                                        quotenumber+=1
-                                        bot.send("%r. %r" % (quotenumber, i), data.command.channel)
+                                        quotenumber += 1
+                                        bot.send("Quote #" + str(quotenumber) + ": " + i, data.command.channel)
                                 else:
                                     try:
-                                        f=open("quotes_.txt", "r").readlines()
+                                        f = open(file_quotes_buffer, "r").readlines()
                                         print(f)
-                                        open("quotes.txt","a").write(f[int(args[2])])
-                                        quote=f[int(args[2])]
-                                        bot.send("Approving quote %r - %r" % (args[2], quote.split("\n")[0]), data.command.channel)
+                                        open(file_quotes, "a").write(f[int(args[2])])
+                                        quote = f[int(args[2])]
+                                        bot.send("Approved quote " + args[2] + " - " + quote.split("\n")[0], data.command.channel)
                                     except Exception as e:
-                                        bot.send("Use "+ command_character +"quote approve <number>", data.command.channel)
-                    except:
-                        bot.send("Use "+ command_character +"quote approve all/show/<number_to_approve>", data.command.channel)
+                                        bot.send("Use " + command_character + "quote approve <number>", data.command.channel)
+                            except:
+                                bot.send("Use " + command_character + "quote approve all/show/<number_to_approve>", data.command.channel)
+                except:
+                    bot.send("Use " + command_character + "quote read/add/count", data.command.channel)
 
+
+            if cmd == "ascii":
+                try:
+                    figlet = Figlet(args[1])
+                    render = figlet.renderText(args[2]).split('\n')
+                    for ascii in render:
+                        bot.send(Color(ascii, random.choice(IRCColors.all_colors)), data.command.channel)
                 except Exception as e:
                     print(e)
-                    try:
-                        with open("quotes.txt") as f:
-                            for i, l in enumerate(f):
-                                pass
-                                x = i
-                        if int(args[2]) > x:
-                            bot.send("I dont have more than %r quotes" % x, data.command.channel)
-                    except Exception as ex:
-                        print(ex)
-                        bot.send("Use " + command_character + "quote add/read/count/approve* <\"quote\">/<number> | * = admins only", data.command.channel)
+                    bot.send("Use " + command_character + "ascii <font> <text>. For a list of fonts visit https://pastebin.com/TvwCcNUd ",data.command.channel)
 
+                '''
+        #TODO: Finish this
+            if cmd == "art":
+                try:
+                    bot.send(random.choice(Art.all_arts), data.command.channel)
+                except Exception as e:
+                    print(e)
 
+        
+        #TODO: Resolve dependency
         if cmd == "memetic":
             text = open("quotes.txt", "r").read()
             text_model = markovify.Text(text)
             try:
                 output = text_model.make_short_sentence(10000)
-                bot.send(str(output), data.command.channel)
-            except Exception as e:
-                print(e)
-                bot.send("Whoops! COCKS!", data.command.channel)
-
-
-        if cmd == "ascii":
-            try:
-                figlet = Figlet(font=args[1])
-                render = figlet.renderText(args[2]).split('\n')
-                for ascii in render:
-                    bot.send(Color(ascii, random.choice(IRCColors.all_colors)), data.command.channel)
-            except Exception as e:
-                print(e)
-                bot.send("Use " + command_character + "ascii <font> <text>. For a list of fonts visit https://pastebin.com/TvwCcNUd ", data.command.channel)
-
-    '''
-    TODO: Finish this
-        if cmd == "art":
-            try:
-                bot.send(random.choice(Art.all_arts), data.command.channel)
-            except Exception as e:
-                print(e)
-
+                bot.send_chan(output, data.channel)
+            except:
+                bot.send_chan("Whoops! COCKS!", data.channel)
+                
         #TODO: Finish this and clean up the mess
         if cmd == "poll":
             if args[1].lower() == "new":
@@ -542,6 +550,24 @@ while True:
                     bot.send_chan("No poll currently running." ,data.channel)
 
 
+        #TODO: Dependency
+        if cmd == "ascii":
+            try:
+                message = data.split()
+                cfont = message[4]
+                text = message[5]
+                f = Figlet(font=cfont)
+                printascii = f.renderText(text)
+                printascii2 = printascii.split('\n')
+                for asciii in printascii2:
+                    bot.send_chan(random.choice(colors1) + asciii + "\x03", data.channel)
+            except:
+                bot.send_chan("Use " + command_character + "ascii <font> <text>. For a list of fonts visit https://pastebin.com/TvwCcNUd ", data.channel)
+
+
+        if cmd == "art":
+            if not art_running:
+                ThreadArt.start()
 
 
         #if cmd == "help":
@@ -551,4 +577,4 @@ while True:
                 #if args[2] == "":
 
                 #elif :
-    '''
+'''
