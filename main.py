@@ -20,8 +20,43 @@ class ConsoleColors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
-colors1=["\x0303", "\x0302", "\x0301", "\x0304", "\x0305", "\x0306", "\x0307","\x0309", "\x0308", "\x0310"]
-colors=["\x0304,02","\x0309,12","\x0308,13", "\x0307,11", "\x0303", "\x0302", "\x0301", "\x0312,15", "\x0304", "\x0304,06", "\x0301,07", "\x0304", "\x0305", "\x0305", "\x0306", "\x0307","\x0309"]
+
+class IRCColors:
+    White   = "00"
+    Black   = "01"
+    Blue    = "02"
+    Green   = "03"
+    Red     = "04"
+    Brown   = "05"
+    Purple  = "06"
+    Orange  = "07"
+    Yellow  = "08"
+    Lime    = "09"
+    Cyan    = "10"
+    Aqua    = "11"
+    LBlue   = "12"
+    Pink    = "13"
+    Grey    = "14"
+    LGrey   = "15"
+
+    all_colors = [White, Black, Blue, Green, Red, Brown, Purple, Orange, Yellow, Lime, Cyan, Aqua, LBlue, Pink, Grey, LGrey]
+
+class IRCFormat:
+    Bold      = "\x02"
+    Color     = "\x03"
+    Italic    = "\x1D"
+    Underline = "\x1F"
+    Swap      = "\x16" #Swaps BG and FG colors
+    Reset     = "\x0F"
+
+def Format(string, format):
+    return "".join(format) + string + "".join(format[::-1])
+
+def Color(string, fg, bg=None):
+    if bg == None:
+        return IRCFormat.Color + fg + string + IRCFormat.Color
+    else:
+        return IRCFormat.Color + fg + "," + bg + string + IRCFormat.Color
 
 
 class PrintType (Enum):
@@ -61,6 +96,9 @@ class IRC_Client(object):
 
     def send(self, message, channel):
         self.send_raw("PRIVMSG " + channel + " :" + message)
+
+    def notice(self, message, nickname):
+        self.send_raw("NOTICE " + nickname + " :" + message)
 
     def action(self, message, channel):
         self.send("ACTION " + message, channel)
@@ -115,7 +153,6 @@ class IRC_Command(object):
 
         elif input[:4] == "MODE":
             self.type = IRC_CommandType.Mode
-            #print(input)
             self.nickname = input.split()[1]
             self.mode = input.split()[2]
 
@@ -198,8 +235,8 @@ class FirstPingThread(Thread):
 irc_server        =  "irc.anonops.com"
 irc_port          =   6697
 irc_nickname      =  "wtfboom"
-irc_nickserv_pwd  =  "ushallnotpass"      #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
-irc_channels      =  ["#spam", "#bottest"]
+irc_nickserv_pwd  =  "fy8tgheuty"      #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
+irc_channels      =  ["#bottest"]
 
 timeout = 130
 command_character = "="
@@ -242,7 +279,7 @@ printEx("Connection successful.", PrintType.Info)
 FirstPingThread().start()
 
 #Wait a bit
-time.sleep(2)
+time.sleep(3)
 
 #Connected, authenticate
 printEx("Sending credentials for " + irc_nickname, PrintType.Info)
@@ -263,9 +300,7 @@ for channel in irc_channels:
 #############################################################################################################
 #############################################################################################################
 
-spam_channels = []
-
-irc_colors = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15"]
+spam_threads = []
 
 class SpamThread(Thread):
     def __init__(self, channel, message, times):
@@ -276,9 +311,11 @@ class SpamThread(Thread):
 
     def run(self):
         for i in range(times): #
-            bot.send(("\x02\x03" + str(random.choice(irc_colors)) + "," + str(random.choice(irc_colors)) + self.message + " | \x03").upper() * 40, self.channel)
+            bot.send(Format(Color(self.message + " | ", random.choice(IRCColors.all_colors), random.choice(IRCColors.all_colors)), [IRCFormat.Bold]).upper() * 40, self.channel)
             time.sleep(1)
-        spam_channels.remove(self.channel)
+        spam_threads.remove(self)
+
+
 
 #Main Loop
 while True:
@@ -295,9 +332,9 @@ while True:
         while arg_index <= len(args_temp) - 1:
 
             arg = args_temp[arg_index]
-            if arg[:1] == "\"" or arg == "\"":
+            if arg[:1] == '"' or arg == '"':
 
-                if arg[-1:] == "\"" and arg != "\"":
+                if arg[-1:] == '"' and arg != '"':
 
                     arg_temp = arg[1:-1]
                     arg_index += 1
@@ -308,7 +345,7 @@ while True:
                     arg_index += 1
 
                     for arg2 in args_temp[arg_index:]:
-                        if arg2[-1:] == "\"" or arg2 == "\"":
+                        if arg2[-1:] == '"' or arg2 == '"':
                             arg_temp += " " + arg2[:-1]
                             arg_index += 1
                             break
@@ -351,51 +388,42 @@ while True:
                     if times > spam_limit:
                         bot.send("Don't abuse meh! Use a number smaller than " + str(spam_limit), data.command.channel)
                     else:
-                        if not data.command.channel in spam_channels:
-                            spam_channels.append(data.command.channel)
-                            SpamThread(data.command.channel, word, times).start()
+                        start_new_thread = True
+                        for thread in spam_threads:
+                            if thread.channel == data.command.channel:
+                                start_new_thread = False
+                                break
+                        if start_new_thread:
+                            new_spam_thread = SpamThread(data.command.channel, word, times)
+                            spam_threads.append(new_spam_thread)
+                            new_spam_thread.start()
                 except:
                     bot.send("Use " + command_character + "spam <times> <message>", data.command.channel)
 
             if cmd == "quote":
+                try:
+                    if args[1].lower() == "add":
+                        if data.sender.entity.nickname not in bot_owner:
+                            quote = data.command.message.split('"')
+                            bot.send("Quote will be added to the main list once an admin approves it. #", data.command.channel)
+                            open("quotes_.txt", "a").write(quote[1] + "\n")
+                        else:
+                            quote = data.command.message.split('"')
+                            bot.send("Quote added! Also cocks.", data.command.channel)
+                            open("quotes.txt", "a").write(quote[1] + "\n")
+                except:
+                    try:
+                        with open("quotes.txt") as f:
+                            for i, l in enumerate(f):
+                                pass
+                                x = i
+                        arg2 = arg[5]
+                        if int(arg2) > x:
+                            bot.send("I dont have more than " + x + " quotes", data.command.channel)
+                    except:
+                        bot.send("Use " + command_character + "quote <number>", data.command.channel)
 
-
-                    '''
-    data = bot.recieve()
-
-    if data.message[:len(command_character)] == command_character:
-
-        argsTemp = data.message[len(command_character):].split(' ')
-        args = []
-
-        arg_index = 0
-        for arg in argsTemp:
-            if arg[:1] == "\"":
-                args_to_merge = args_to_merge
-                #for arg2 in argsTemp[arg_index:]:
-
-            arg_index += 1
-
-        #TODO: Handle multiple arguments in quotes as one argument
-        args = argsTemp
-
-        cmd = args[0].lower()
-
-
-
-        if cmd == "version":
-            bot.send_chan("Version :" + version, data.channel)
-
-
-        if cmd == "die":
-            if data.nickname not in bot_owner:
-                bot.send_chan(prompt_priviledge_required, data.channel)
-            else:
-                bot.send_chan("oh...okay. :'(", data.channel)
-                bot.send("QUIT")
-                exit()
-
-
+        '''
         #TODO: Clean up this mess
         if cmd == "quote":
             try:
@@ -494,24 +522,6 @@ while True:
                     bot.send_chan(random.choice(colors1) + asciii + "\x03", data.channel)
             except:
                 bot.send_chan("Use " + command_character + "ascii <font> <text>. For a list of fonts visit https://pastebin.com/TvwCcNUd ", data.channel)
-
-
-
-        if cmd == "spam":
-            try:
-                word = args[2] + " | \x03"
-                times = args[1]
-                #TODO: set configuarble limit
-                spam_limit = 100
-                if int(times) > spam_limit:
-                    bot.send_chan("Don't abuse meh! Use a number smaller than " + str(spam_limit), data.channel)
-                else:
-                    for i in range(int(times)):
-                        time.sleep(1)
-                        cword = random.choice(colors) + word
-                        bot.send_chan(str(cword) * 40, data.channel)
-            except:
-                bot.send_chan("Use " + command_character + "spam <times> <message>", data.channel)
 
 
         if cmd == "art":
