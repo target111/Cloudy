@@ -198,7 +198,7 @@ class FirstPingThread(Thread):
 irc_server        =  "irc.anonops.com"
 irc_port          =   6697
 irc_nickname      =  "wtfboom"
-irc_nickserv_pwd  =  "fy8tgheuty"      #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
+irc_nickserv_pwd  =  "ushallnotpass"      #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
 irc_channels      =  ["#spam", "#bottest"]
 
 timeout = 130
