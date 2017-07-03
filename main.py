@@ -1,4 +1,4 @@
-version = "2.0.0.0"
+version = "2.0.0.0 beta"
 
 import socket
 import ssl
@@ -67,6 +67,9 @@ class IRC_Client(object):
 
     def join(self, channel):
         self.send_raw("JOIN " + channel)
+
+    def exit(self):
+        self.send_raw("QUIT")
 
     def authenticate_nickserv(self, password):
         self.send("IDENTIFY " + password, "NICKSERV")
@@ -195,8 +198,8 @@ class FirstPingThread(Thread):
 irc_server        =  "irc.anonops.com"
 irc_port          =   6697
 irc_nickname      =  "wtfboom"
-irc_nickserv_pwd  =  ""         #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
-irc_channels      =  ["#bottest"]
+irc_nickserv_pwd  =  "fy8tgheuty"      #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
+irc_channels      =  ["#spam", "#bottest"]
 
 timeout = 130
 command_character = "="
@@ -260,23 +263,22 @@ for channel in irc_channels:
 #############################################################################################################
 #############################################################################################################
 
-'''
-poll_threads = []
+spam_channels = []
 
-class ThreadPoll(Thread):
+irc_colors = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15"]
 
-   def __init__(self, poll):
-        self.poll = poll
-        self.time_started = time.time()
+class SpamThread(Thread):
+    def __init__(self, channel, message, times):
         Thread.__init__(self)
+        self.channel = channel
+        self.message = message
+        self.times = times
 
-   def run(self):
-        while time.time() - self.time_started < 60:
-            #TODO
-            print("IM GONNA EAT YO ASS BOII")
-
-        poll_threads.remove(self)
-'''
+    def run(self):
+        for i in range(times): #
+            bot.send(("\x02\x03" + str(random.choice(irc_colors)) + "," + str(random.choice(irc_colors)) + self.message + " | \x03").upper() * 40, self.channel)
+            time.sleep(1)
+        spam_channels.remove(self.channel)
 
 #Main Loop
 while True:
@@ -323,7 +325,42 @@ while True:
 
         print(args)
 
-    '''
+
+        if args[0][:len(command_character)] == command_character:
+            cmd = args[0][1:].lower()
+
+
+            if cmd == "version":
+                bot.send("Version: " + version, data.command.channel)
+
+
+            if cmd == "die":
+                if data.sender.entity.nickname not in bot_owner:
+                    bot.send(prompt_priviledge_required, data.command.channel)
+                else:
+                    bot.send("oh...okay. :'(", data.command.channel)
+                    bot.exit()
+                    exit()
+
+            if cmd == "spam":
+                try:
+                    times = int(args[1])
+                    word = " ".join(args[2:]).upper()
+                    # TODO: set configuarble limit
+                    spam_limit = 100
+                    if times > spam_limit:
+                        bot.send("Don't abuse meh! Use a number smaller than " + str(spam_limit), data.command.channel)
+                    else:
+                        if not data.command.channel in spam_channels:
+                            spam_channels.append(data.command.channel)
+                            SpamThread(data.command.channel, word, times).start()
+                except:
+                    bot.send("Use " + command_character + "spam <times> <message>", data.command.channel)
+
+            if cmd == "quote":
+
+
+                    '''
     data = bot.recieve()
 
     if data.message[:len(command_character)] == command_character:
