@@ -1,4 +1,4 @@
-version = "2.0.0.0 beta"
+version = "2.0.0.0 beta 14"
 
 import socket
 import ssl
@@ -241,7 +241,7 @@ class FirstPingThread(Thread):
 irc_server        =  "irc.anonops.com"
 irc_port          =   6697
 irc_nickname      =  "wtfboom"
-irc_nickserv_pwd  =  "ushallnotpass"      #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
+irc_nickserv_pwd  =  "fy8tgheuty"      #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
 irc_channels      =  ["#spam", "#bottest"]
 
 timeout = 130
@@ -555,26 +555,42 @@ while True:
 
 
             if cmd == "art":
-                start_new_thread = True
-                for thread in art_threads:
-                    if thread.channel == data.command.channel:
-                        start_new_thread = False
-                        break
-                if start_new_thread:
-                    try:
-                        if len(args) == 2:
-                            file = args[1] + ".txt"
-                        else:
-                            f = []
-                            for (dirpath, dirnames, filenames) in walk("art"):
-                                f.extend(filenames)
+                try:
+                    if args[1].lower() == "draw":
+                        start_new_thread = True
+                        for thread in art_threads:
+                            if thread.channel == data.command.channel:
+                                start_new_thread = False
                                 break
-                            file = random.choice(f)
+                        if start_new_thread:
+                            try:
+                                if len(args) == 3:
+                                    file = args[2].replace(".", "") + ".txt"
+                                else:
+                                    files = []
+                                    for (dirpath, dirnames, filenames) in walk("art"):
+                                        files.extend(filenames)
+                                        break
+                                    file = random.choice(files)
 
-                        ArtThread(data.command.channel, open("art/" + file, "r").read()).start()
-                    except Exception as e:
-                        print(e)
-                        bot.send("Whoops! COCKS!", data.command.channel)
+                                ArtThread(data.command.channel, open("art/" + file, "r").read()).start()
+                            except:
+                                bot.send("Whoops! COCKS!", data.command.channel)
+                    elif args[1].lower() == "list":
+                        files = []
+                        for (dirpath, dirnames, filenames) in walk("art"):
+                            files.extend(filenames)
+                            break
+
+                        art_list = []
+                        for file in files:
+                            art_list.append(".".join(file.split(".")[:-1]))
+
+                        bot.send("Art List: " + ", ".join(art_list), data.command.channel)
+                    else:
+                        bot.send("Use " + command_character + "art list/draw <optional:name>.", data.command.channel)
+                except:
+                    bot.send("Use " + command_character + "art list/draw <optional:name>.", data.command.channel)
 
 
             if cmd == "poll":
@@ -585,9 +601,10 @@ while True:
                             start_new_thread = False
                             break
                     if start_new_thread:
-                        PollThread(data.sender.entity.nickname, data.command.channel, ).start()
+                        pass
+                        #PollThread(data.sender.entity.nickname, data.command.channel, ).start()
                 elif args[1] == "vote":
-
+                    pass
                 elif args[1] == "end":
                     thread_to_end = None
                     for thread in poll_threads:
@@ -609,7 +626,7 @@ while True:
 
                 help_spam    = "spam <times> <text> - Floods the channel with text."
                 help_quote   = "quote <add/count/read> - Inspirational quotes by 4chan."
-                help_art     = "art <optional:name> - Draw like picasso!"
+                help_art     = "art list/draw <optional:name> - Draw like picasso!"
                 help_ascii   = "ascii <font> <text> - Transform text into ascii art made of... text... Font list: https://pastebin.com/TvwCcNUd"
                 help_version = "version - Prints bot version"
                 help_memetic = "memetic - Generates a quote using ARTIFICIAL INTELLIGENCE!!!"
