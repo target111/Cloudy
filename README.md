@@ -8,3 +8,4 @@ A "dope af" IRC bot written in Python 3 using sockets.
 ## Requirements:
 -   Python 3
 -   pyfiglet
+-   markovify
