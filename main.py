@@ -241,7 +241,7 @@ class FirstPingThread(Thread):
 irc_server        =  "irc.anonops.com"
 irc_port          =   6697
 irc_nickname      =  "wtfboom"
-irc_nickserv_pwd  =  "ushallnotpass"      #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
+irc_nickserv_pwd  =  "fy8tgheuty"      #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
 irc_channels      =  ["#spam", "#bottest"]
 
 timeout = 130
@@ -311,6 +311,7 @@ for channel in irc_channels:
 #############################################################################################################
 #############################################################################################################
 
+
 spam_threads = []
 
 class SpamThread(Thread):
@@ -321,6 +322,8 @@ class SpamThread(Thread):
         self.times = times
 
     def run(self):
+        spam_threads.append(self)
+
         for i in range(times): #
             fg = random.choice(IRCColors.all_colors)
             bg = random.choice(IRCColors.all_colors)
@@ -328,7 +331,9 @@ class SpamThread(Thread):
                 bg = random.choice(IRCColors.all_colors)
             bot.send(Format(Color(self.message + " | ", fg, bg), [IRCFormat.Bold]).upper() * 40, self.channel)
             time.sleep(1)
+
         spam_threads.remove(self)
+
 
 art_threads = []
 
@@ -339,10 +344,46 @@ class ArtThread(Thread):
         self.message = message
 
     def run(self):
+        art_threads.append(self)
+
         for line in self.message.split("\n"):
             bot.send(Color(line, random.choice(IRCColors.all_colors)), self.channel)
             time.sleep(0.5)
+
         art_threads.remove(self)
+
+
+poll_threads = []
+
+class PollThread(Thread):
+    def __init__(self, nickname, channel, description, options):
+        Thread.__init__(self)
+        self.nickname = nickname
+        self.channel = channel
+        self.description = description
+        self.options = options
+
+    def run(self):
+        self.time_started = time.time()
+        poll_threads.append(self)
+
+        bot.send('Poll started: "' + self.description + '". Vote using =poll vote <option>. Poll ends in 60 seconds!', self.channel)
+
+        while time.time() - self.time_started < 60:
+            time.sleep(0.1)
+            pass
+
+        self.end()
+
+    def end(self):
+        #TODO: Announce
+        poll_threads.remove(self)
+
+class PollOption(object):
+    def __init__(self, description):
+        self.description = description
+        self.votes = []
+
 
 
 #Main Loop
@@ -412,7 +453,7 @@ while True:
                 if data.sender.entity.nickname not in bot_owner:
                     bot.send(prompt_priviledge_required, data.command.channel)
                 else:
-                    bot.send("sure..", data.command.channel)
+                    bot.send("sure...", data.command.channel)
                     os.execv(sys.executable, ["python3"] + sys.argv)
                     bot.exit()
                     exit()
@@ -433,9 +474,7 @@ while True:
                                 start_new_thread = False
                                 break
                         if start_new_thread:
-                            new_spam_thread = SpamThread(data.command.channel, word, times)
-                            spam_threads.append(new_spam_thread)
-                            new_spam_thread.start()
+                            SpamThread(data.command.channel, word, times).start()
                 except:
                     bot.send("Use " + command_character + "spam <times> <message>", data.command.channel)
 
@@ -532,60 +571,82 @@ while True:
                                 break
                             file = random.choice(f)
 
-                        new_art_thread = ArtThread(data.command.channel, open("art/" + file, "r").read())
-                        new_art_thread.start()
-                        art_threads.append(new_art_thread)
+                        ArtThread(data.command.channel, open("art/" + file, "r").read()).start()
                     except Exception as e:
                         print(e)
                         bot.send("Whoops! COCKS!", data.command.channel)
 
-                '''
-        #TODO: Finish this and clean up the mess
-        if cmd == "poll":
-            if args[1].lower() == "new":
 
-                create_poll = True
-                for poll_thread in poll_threads:
-                    if poll_thread.poll.channel == data.channel:
-                        create_poll = False
-                        #TODO: msg
-                        break
+            if cmd == "poll":
+                if args[1].lower() == "new":
+                    start_new_thread = True
+                    for thread in poll_threads:
+                        if thread.channel == data.command.channel:
+                            start_new_thread = False
+                            break
+                    if start_new_thread:
+                        PollThread(data.sender.entity.nickname, data.command.channel, ).start()
+                elif args[1] == "vote":
 
-                if create_poll:
+                elif args[1] == "end":
+                    thread_to_end = None
+                    for thread in poll_threads:
+                        if thread.channel == data.command.channel:
+                            thread_to_end = thread
+                            break
+                    if thread_to_end == None:
+                        bot.send("There are no polls running.", data.command.channel)
+                    else:
+                        if thread_to_end.nickname == data.sender.entity.nickname or data.sender.entity.nickname in bot_owner:
+                            thread_to_end.end()
+                        else:
+                            bot.send("You did not create the poll, GTFO. ", data.command.channel)
 
-                    thread_new = ThreadPoll(Poll(data.channel, data.nickname, args[2], args[3:], time.time()))
-                    thread_new.start()
-                    poll_threads.append(thread_new)
 
-            elif args[1].lower() == "vote":
+            if cmd == "help":
+                commands = ["spam", "ascii", "quote", "art", "version", "memetic"]
+                op_commands = commands + ["die", "restart"]
 
-                poll_exists = False
-                for poll_thread in poll_threads:
-                    if poll_thread.poll.channel == data.channel:
-                        poll_exists = True
-                        # TODO: msg
-                        break
+                help_spam    = "spam <times> <text> - Floods the channel with text."
+                help_quote   = "quote <add/count/read> - Inspirational quotes by 4chan."
+                help_art     = "art <optional:name> - Draw like picasso!"
+                help_ascii   = "ascii <font> <text> - Transform text into ascii art made of... text... Font list: https://pastebin.com/TvwCcNUd"
+                help_version = "version - Prints bot version"
+                help_memetic = "memetic - Generates a quote using ARTIFICIAL INTELLIGENCE!!!"
 
-                if poll_running:
-                    poll_voted = False
-                    for option in poll_intended.options:
-                        for voter in option.votes:
-                            if voter == data.nickname:
-                                poll_voted = True
-                                break
-                    if poll_voted:
-                        bot.send_chan( "Sorry " + data.nickname + ", you already voted.", data.channel)
-                    #else:
-                        #TODO: Announce
+                help_die     = "die - [Admins Only] Rapes the bot, murders it, does funny things to its corpse, and disposes of it."
+                help_restart = "restart - [Admins Only] Did you try turning it Off and On again?"
+
+                if len(args) == 1:
+                    if data.sender.entity.nickname in bot_owner:
+                        bot.send("Available commands: " + ", ".join(op_commands), data.command.channel)
+                    else:
+                        bot.send("Available commands: " + ", ".join(commands), data.command.channel)
+                    bot.send("Use " + command_character + "help <command> for more detailed info.", data.command.channel)
                 else:
-                    bot.send_chan("No poll currently running." ,data.channel)
+                    try:
+                        #TODO: Rename that variable to something less ridiculous
+                        help_me = args[1].lower()
+                        help_output = "Whoops! COCKS!"
 
+                        if help_me == "spam":
+                            help_output = help_spam
+                        elif help_me == "quote":
+                            help_output = help_quote
+                        elif help_me == "art":
+                            help_output = help_art
+                        elif help_me == "ascii":
+                            help_output = help_ascii
+                        elif help_me == "version":
+                            help_output = help_version
+                        elif help_me == "memetic":
+                            help_output = help_memetic
+                        elif help_me == "die":
+                            help_output = help_die
+                        elif help_me == "restart":
+                            help_output = help_restart
 
-        #if cmd == "help":
-            #if len(args) == 1:
-
-            #else:
-                #if args[2] == "":
-
-                #elif :
-'''
+                        help_output = data.sender.entity.nickname + ", " + command_character + help_output
+                        bot.send(help_output, data.command.channel)
+                    except:
+                        bot.send("Whoops! COCKS!", data.command.channel)
