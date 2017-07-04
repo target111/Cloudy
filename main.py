@@ -1,4 +1,4 @@
-version = "2.0.0.0 beta 14"
+version = "2.0"
 
 import socket
 import ssl
@@ -241,7 +241,7 @@ class FirstPingThread(Thread):
 irc_server        =  "irc.anonops.com"
 irc_port          =   6697
 irc_nickname      =  "wtfboom"
-irc_nickserv_pwd  =  "ushallnotpass"      #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
+irc_nickserv_pwd  =  "fy8tgheuty"      #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
 irc_channels      =  ["#spam", "#bottest"]
 
 timeout = 130
@@ -371,12 +371,17 @@ class PollThread(Thread):
 
         while time.time() - self.time_started < 60:
             time.sleep(0.1)
-            pass
+            if self not in poll_threads:
+                break
 
-        self.end()
+        if self in poll_threads:
+            self.end()
 
     def end(self):
-        #TODO: Announce
+        bot.send("Poll ended. Results:", self.channel)
+        for option in self.options:
+            bot.send('"' + option.description + '": ' + str(len(option.votes)) + " votes.", self.channel)
+            time.sleep(0.5)
         poll_threads.remove(self)
 
 class PollOption(object):
@@ -594,34 +599,67 @@ while True:
 
 
             if cmd == "poll":
-                if args[1].lower() == "new":
-                    start_new_thread = True
-                    for thread in poll_threads:
-                        if thread.channel == data.command.channel:
-                            start_new_thread = False
+                try:
+                    if args[1].lower() == "new":
+                        start_new_thread = True
+                        for thread in poll_threads:
+                            if thread.channel == data.command.channel:
+                                start_new_thread = False
+                                break
+                        if start_new_thread:
+                            try:
+                                options = []
+                                for option in args[3:]:
+                                    options.append(PollOption(option))
+                                if options == []:
+                                    bot.send('No options specified. Please use "' + command_character + 'help poll" for more info.', data.command.channel)
+                                else:
+                                    PollThread(data.sender.entity.nickname, data.command.channel, args[2], options).start()
+                            except:
+                                bot.send("Whoops! COCKS!", data.command.channel)
+                    elif args[1] == "vote":
+                        vote_valid = True
+                        vote_thread = None
+                        vote_option = None
+                        for thread in poll_threads:
+                            if thread.channel == data.command.channel:
+                                vote_thread = thread
+                                for option in thread.options:
+                                    if data.sender.entity.nickname in option.votes:
+                                        vote_valid = False
+                                    if args[2] == option.description:
+                                        vote_option = option
                             break
-                    if start_new_thread:
-                        pass
-                        #PollThread(data.sender.entity.nickname, data.command.channel, ).start()
-                elif args[1] == "vote":
-                    pass
-                elif args[1] == "end":
-                    thread_to_end = None
-                    for thread in poll_threads:
-                        if thread.channel == data.command.channel:
-                            thread_to_end = thread
-                            break
-                    if thread_to_end == None:
-                        bot.send("There are no polls running.", data.command.channel)
-                    else:
-                        if thread_to_end.nickname == data.sender.entity.nickname or data.sender.entity.nickname in bot_owner:
-                            thread_to_end.end()
+                        if vote_thread == None:
+                            bot.send("There are no polls running.", data.command.channel)
+                        else :
+                            if vote_valid:
+                                if vote_option == None:
+                                    bot.send('No suck option: "' + args[2] + '"', data.command.channel)
+                                else:
+                                    #Actually add the vote
+                                    vote_option.votes.append(data.sender.entity.nickname)
+                            else:
+                                bot.send("Sorry " + data.sender.entity.nickname + ", you already voted.", data.command.channel)
+                    elif args[1] == "end":
+                        thread_to_end = None
+                        for thread in poll_threads:
+                            if thread.channel == data.command.channel:
+                                thread_to_end = thread
+                                break
+                        if thread_to_end == None:
+                            bot.send("There are no polls running.", data.command.channel)
                         else:
-                            bot.send("You did not create the poll, GTFO. ", data.command.channel)
+                            if thread_to_end.nickname == data.sender.entity.nickname or data.sender.entity.nickname in bot_owner:
+                                thread_to_end.end()
+                            else:
+                                bot.send("You did not create that poll, GTFO. ", data.command.channel)
+                except:
+                    bot.send("Whoops! COCKS!", data.command.channel)
 
 
             if cmd == "help":
-                commands = ["spam", "ascii", "quote", "art", "version", "memetic"]
+                commands = ["spam", "ascii", "quote", "art", "version", "memetic", "poll"]
                 op_commands = commands + ["die", "restart"]
 
                 help_spam    = "spam <times> <text> - Floods the channel with text."
@@ -630,6 +668,7 @@ while True:
                 help_ascii   = "ascii <font> <text> - Transform text into ascii art made of... text... Font list: https://pastebin.com/TvwCcNUd"
                 help_version = "version - Prints bot version"
                 help_memetic = "memetic - Generates a quote using ARTIFICIAL INTELLIGENCE!!!"
+                help_poll    = "poll new <description> <option1> <option2> ... / vote <option> / end - DEMOCRACY, BITCH!"
 
                 help_die     = "die - [Admins Only] Rapes the bot, murders it, does funny things to its corpse, and disposes of it."
                 help_restart = "restart - [Admins Only] Did you try turning it Off and On again?"
@@ -644,7 +683,7 @@ while True:
                     try:
                         #TODO: Rename that variable to something less ridiculous
                         help_me = args[1].lower()
-                        help_output = "Whoops! COCKS!"
+                        help_output = 'Unknown command "' + args[1] + '". Please use "' + command_character + 'help" for a list of available commands.'
 
                         if help_me == "spam":
                             help_output = help_spam
