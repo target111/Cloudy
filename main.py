@@ -367,9 +367,9 @@ class PollThread(Thread):
         self.time_started = time.time()
         poll_threads.append(self)
 
-        bot.send('Poll started: "' + self.description + '". Vote using =poll vote <option>. Poll ends in 60 seconds!', self.channel)
+        bot.send('Poll started: "' + self.description + '". Vote using =poll vote <option>. Poll ends in 5 minutes!', self.channel)
 
-        while time.time() - self.time_started < 60:
+        while time.time() - self.time_started < 300:
             time.sleep(0.1)
             if self not in poll_threads:
                 break
@@ -530,6 +530,7 @@ while True:
                                         open(file_quotes, "a").write(f[int(args[2])])
                                         quote = f[int(args[2])]
                                         bot.send("Approved quote " + args[2] + " - " + quote.split("\n")[0], data.command.channel)
+                                        os.system("sed '%rd' %r > quotes_buffer_temp; mv quotes_buffer_temp %r" % (args[2], file_quotes_buffer, file_quotes_buffer))
                                     except Exception as e:
                                         bot.send("Use " + command_character + "quote approve <number>", data.command.channel)
                             except:
@@ -701,6 +702,8 @@ while True:
                             help_output = help_die
                         elif help_me == "restart":
                             help_output = help_restart
+                        elif help_me == "poll":
+                            help_output = help_poll
 
                         help_output = data.sender.entity.nickname + ", " + command_character + help_output
                         bot.send(help_output, data.command.channel)
