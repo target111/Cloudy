@@ -1,4 +1,4 @@
-version = "2.0"
+version = "2.1"
 
 import socket
 import ssl
@@ -12,6 +12,30 @@ from os import walk
 
 from pyfiglet import Figlet
 import markovify
+
+#############################################################################################################
+#############################################################################################################
+
+#Connection Info
+#TODO: load from config file. if non-existent, take user input.
+
+irc_server        =  "irc.anonops.com"
+irc_port          =   6697
+irc_nickname      =  "wtfboom"
+irc_nickserv_pwd  =  "fy8tgheuty"      #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
+irc_channels      =  ["#spam", "#bots"]
+
+timeout = 121
+command_character = "="
+
+file_quotes = "quotes.txt"
+file_quotes_buffer = "quotes_buffer.txt"
+
+#TODO: Either use admin status as owner or load form config
+#TODO: Also, insecure. someone can set their nick to yours and quickly execute a command before nickserv changes it
+bot_owner = ["target_",  "North_Star", "OverclockedSanic", "darko", "scribbler", "nautilus", "Gen0cide"]
+
+prompt_priviledge_required = "This command requires sudo access, kid."
 
 #############################################################################################################
 #############################################################################################################
@@ -48,6 +72,7 @@ class IRCColors:
     all_colors = [White, Black, Blue, Green, Red, Brown, Purple, Orange, Yellow, Lime, Cyan, Aqua, LBlue, Pink, Grey, LGrey]
 
 class IRCFormat:
+    Action    = "\x01"
     Bold      = "\x02"
     Color     = "\x03"
     Italic    = "\x1D"
@@ -98,7 +123,8 @@ class IRC_Client(object):
         self.send_raw("USER " + self.nickname + " 0 * :HIIMFUN")
 
     def send_raw(self, message):
-        self.irc_ssl.send((message + "\r\n").encode("UTF-8"))
+        if not message == "":
+            self.irc_ssl.send((message + "\r\n").encode("UTF-8"))
 
     def send(self, message, channel):
         self.send_raw("PRIVMSG " + channel + " :" + message)
@@ -107,7 +133,7 @@ class IRC_Client(object):
         self.send_raw("NOTICE " + nickname + " :" + message)
 
     def action(self, message, channel):
-        self.send("ACTION " + message, channel)
+        self.send(Format("ACTION " + message, IRCFormat.Action), channel)
 
     def join(self, channel):
         self.send_raw("JOIN " + channel)
@@ -119,7 +145,7 @@ class IRC_Client(object):
         self.send("IDENTIFY " + password, "NICKSERV")
 
     def set_mode(self, nickname, mode):
-        self.send_raw("MODE " + nickname + " " + mode)
+        self.send_raw("MODE " + nickname + " +" + mode)
 
     def recieve_raw(self):
         return self.irc_ssl.recv(4096).decode("UTF8")
@@ -129,13 +155,7 @@ class IRC_Client(object):
 
         print(raw)
 
-        if raw.split()[0] == "PING":
-            bot.send_raw("PONG " + raw.split()[1][1:])
-
-        sender = raw.split()[0][1:]
-        command = raw.split(" ", 1)[1]
-
-        return IRC_Data(sender, command)
+        return IRC_Data(raw)
 
 class IRC_Server(object):
     def __init__(self, address, port):
@@ -146,70 +166,121 @@ class IRC_Server(object):
         return self.address + ":" + self.port
 
 class IRC_Data(object):
-    def __init__(self, sender, command):
-        self.sender = IRC_Entity(sender)
-        self.command = IRC_Command(command)
-
-class IRC_Command(object):
     def __init__(self, input):
 
-        if input[:4] == "JOIN":
-            self.type = IRC_CommandType.Join
-            self.channel = input[6:]
+        self.type_command = IRC_CommandType.Unknown
 
-        elif input[:4] == "MODE":
-            self.type = IRC_CommandType.Mode
-            self.nickname = input.split()[1]
-            self.mode = input.split()[2]
+        if input[:1] == ":":
 
-        elif input[:7] == "PRIVMSG" and not input.split(":")[1][:6] == "ACTION":
-            self.type = IRC_CommandType.Message
-            self.channel = input.split()[1]
-            self.message = input.split(":", 1)[1]
+            input = input[1:]
+            sender = input.split()[0]
 
-        elif input[:7] == "PRIVMSG" and input.split(":")[1][:7] == "ACTION":
-            self.type = IRC_CommandType.Action
-            self.message = input.split(":", 1)[1][6:]
+            if "!" in sender and "@" in sender:
+                self.sender_type = IRC_SenderType.Client
+                self.sender = IRC_User(sender)
+            else:
+                self.sender_type = IRC_SenderType.Server
+                self.sender = sender
 
-        elif input[:7] == "INVITE":
-            self.type = IRC_CommandType.Invite
-            self.nickname = input.split()[1]
-            self.channel = input.split(":", 1)[1]
 
-        elif input[:6] == "NOTICE":
-            self.type = IRC_CommandType.Notice
-            self.notice_string = input.split()[1]
-            self.message = input.split(":", 1)[1]
+            try:
+                if input.split()[1] == "JOIN":
+                    self.type_command = IRC_CommandType.Join
+                    self.channel = input.split()[2][1:]
+            except:
+                pass
 
-        elif input.split()[0] == "NICK":
-            self.type = IRC_CommandType.Nick
-            self.nickname = input.split()[1]
+            try:
+                if input.split()[1] == "MODE":
+                    self.type_command = IRC_CommandType.Mode
+                    self.nickname = input.split()[2]
+                    self.mode = input.split()[3]
+                    if len(input.split(":", 1)) == 1:
+                        self.channel = None
+                    else:
+                        self.channel = input.split(":", 1)[1]
+            except:
+                pass
+
+            try:
+                if input.split()[1] == "PRIVMSG" and not input.split(":")[1].split()[0] == IRCFormat.Action + "ACTION":
+                    self.type_command = IRC_CommandType.Message
+                    self.channel = input.split()[2]
+                    self.message = input.split(":", 1)[1]
+            except:
+                pass
+
+            try:
+                if input.split()[1] == "PRIVMSG" and input.split(":")[1].split()[0] == "ACTION" and input[-1:] == IRCFormat.Action:
+                    self.type_command = IRC_CommandType.Action
+                    self.message = input.split(":", 1)[1].split(" ", 1)[1][:-1]
+            except:
+                pass
+
+            try:
+                if input.split()[1] == "INVITE":
+                    self.type_command = IRC_CommandType.Invite
+                    self.nickname = input.split()[2]
+                    self.channel = input.split(":", 1)[1]
+            except:
+                pass
+
+            try:
+                if input.split()[1] == "NOTICE":
+                    self.type = IRC_CommandType.Notice
+                    self.notice_string = input.split()[1]
+                    self.message = input.split(":", 1)[1]
+            except:
+                pass
+
+            try:
+                if input.split()[1] == "NICK":
+                    self.type_command = IRC_CommandType.Nick
+                    self.nickname = input.split()[2]
+            except:
+                pass
+
+            try:
+                if input.split()[1] == "TOPIC":
+                    self.channel = input.split()[2]
+                    self.message = input.split(":", 1)[1]
+            except:
+                pass
+
+            try:
+                if input.split()[1] == "QUIT":
+                    self.type_command = IRC_CommandType.Quit
+                    self.message = input.split(":", 1)[1]
+            except:
+                pass
 
         else:
-            self.type = IRC_CommandType.Unknown
+            self.sender_type = None
+            self.sender = None
+
+            try:
+                if input.split()[0] == "PING":
+                    self.type_command = IRC_CommandType.Ping
+                    self.data = input.split()[1][1:]
+            except:
+                pass
 
 
 class IRC_CommandType(Enum):
-    Unknown = 0
-    Join    = 1
-    Mode    = 2
-    Message = 3
-    Action  = 4
-    Invite  = 5
-    Notice  = 6
-    Nick    = 7
+    Unknown =  0
+    Join    =  1
+    Mode    =  2
+    Message =  3
+    Action  =  4
+    Invite  =  5
+    Notice  =  6
+    Nick    =  7
+    Ping    =  8
+    Kick    =  9
+    Topic   = 10
+    Quit    = 11
 
-
-class IRC_Entity(object):
-    def __init__(self, input):
-        if "!" in input and "@" in input:
-            self.type = IRC_EntityType.Client
-            self.entity = IRC_User(input)
-        else:
-            self.type = IRC_EntityType.Server
-            self.entity = input
-
-class IRC_EntityType(Enum):
+class IRC_SenderType(Enum):
     Server = 0
     Client = 1
 
@@ -222,6 +293,11 @@ class IRC_User(object):
     def toString(self):
         return self.nickname + "!" + self.username + "@" + self.host
 
+class IRC_Mode:
+    Bot      = "B"
+    Ban      = "b"
+    Operator = "a"
+
 
 class FirstPingThread(Thread):
     def run(self):
@@ -230,31 +306,6 @@ class FirstPingThread(Thread):
         if pingis.split()[0] == "PING":
             bot.send_raw("PONG " + pingis.split()[1][1:])
 
-
-#############################################################################################################
-#############################################################################################################
-
-
-#Connection Info
-#TODO: load from config file. if non-existent, take user input.
-
-irc_server        =  "irc.anonops.com"
-irc_port          =   6697
-irc_nickname      =  "wtfboom"
-irc_nickserv_pwd  =  "ushallnotpass"      #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
-irc_channels      =  ["#spam", "#bots"]
-
-timeout = 130
-command_character = "="
-
-file_quotes = "quotes.txt"
-file_quotes_buffer = "quotes_buffer.txt"
-
-#TODO: Either use admin status as owner or load form config
-#TODO: Also, insecure. someone can set their nick to yours and quickly execute a command before nickserv changes their name
-bot_owner = ["target_",  "North_Star", "OverclockedSanic", "darko", "scribbler", "nautilus", "Gen0cide"]
-
-prompt_priviledge_required = "This command requires sudo access, kid."
 
 #############################################################################################################
 #############################################################################################################
@@ -296,7 +347,7 @@ time.sleep(3)
 printEx("Sending credentials for " + irc_nickname, PrintType.Info)
 
 bot.authenticate_nickserv(irc_nickserv_pwd)
-bot.set_mode(bot.nickname, "+B")
+bot.set_mode(bot.nickname, IRC_Mode.Bot)
 
 printEx("Credentials sent. Waiting for authentication...", PrintType.Info)
 
@@ -367,9 +418,9 @@ class PollThread(Thread):
         self.time_started = time.time()
         poll_threads.append(self)
 
-        bot.send('Poll started: "' + self.description + '". Vote using =poll vote <option>. Poll ends in 5 minutes!', self.channel)
+        bot.send('Poll started: "' + self.description + '". Vote using =poll vote <option>. Poll ends in 60 seconds!', self.channel)
 
-        while time.time() - self.time_started < 300:
+        while time.time() - self.time_started < 60:
             time.sleep(0.1)
             if self not in poll_threads:
                 break
@@ -390,17 +441,27 @@ class PollOption(object):
         self.votes = []
 
 
+class HelpData(object):
+    def __init__(self, command, admin_only, description):
+        self.command = command
+        self.admin_only = admin_only
+        self.description = description
+
 
 #Main Loop
 while True:
 
     data = bot.recieve()
 
-    if data.sender.type == IRC_EntityType.Client and data.command.type == IRC_CommandType.Message:
+    #Respond to pings
+    if data.type_command == IRC_CommandType.Ping:
+        bot.send_raw("PONG " + data.data)
+
+    if data.sender_type == IRC_SenderType.Client and data.type_command == IRC_CommandType.Message:
 
         #Treats multiple args in quotes as a single arg
         args = []
-        args_temp = data.command.message.split()
+        args_temp = data.message.split()
 
         arg_index = 0
         while arg_index <= len(args_temp) - 1:
@@ -408,7 +469,7 @@ while True:
             arg = args_temp[arg_index]
             if arg[:1] == '"' or arg == '"':
 
-                if arg[-1:] == '"' and arg != '"':
+                if arg[-1:] == '"' and not arg == '"':
 
                     arg_temp = arg[1:-1]
                     arg_index += 1
@@ -442,23 +503,23 @@ while True:
 
 
             if cmd == "version":
-                bot.send("Version: " + version, data.command.channel)
+                bot.send("Version: " + version  + " - GitHub: https://github.com/OverclockedSanic/SpamBot", data.channel)
 
 
             if cmd == "die":
-                if data.sender.entity.nickname not in bot_owner:
-                    bot.send(prompt_priviledge_required, data.command.channel)
+                if data.sender.nickname not in bot_owner:
+                    bot.send(prompt_priviledge_required, data.channel)
                 else:
-                    bot.send("oh...okay. :'(", data.command.channel)
+                    bot.send("oh...okay. :'(", data.channel)
                     bot.exit()
                     exit()
 
 
             if cmd == "restart":
-                if data.sender.entity.nickname not in bot_owner:
-                    bot.send(prompt_priviledge_required, data.command.channel)
+                if data.sender.nickname not in bot_owner:
+                    bot.send(prompt_priviledge_required, data.channel)
                 else:
-                    bot.send("sure...", data.command.channel)
+                    bot.send("sure...", data.channel)
                     os.execv(sys.executable, ["python3"] + sys.argv)
                     bot.exit()
                     exit()
@@ -471,28 +532,28 @@ while True:
                     # TODO: set configuarble limit
                     spam_limit = 100
                     if times > spam_limit:
-                        bot.send("Don't abuse meh! Use a number smaller than " + str(spam_limit), data.command.channel)
+                        bot.send("Don't abuse meh! Use a number smaller than " + str(spam_limit), data.channel)
                     else:
                         start_new_thread = True
                         for thread in spam_threads:
-                            if thread.channel == data.command.channel:
+                            if thread.channel == data.channel:
                                 start_new_thread = False
                                 break
                         if start_new_thread:
-                            SpamThread(data.command.channel, word, times).start()
+                            SpamThread(data.channel, word, times).start()
                 except:
-                    bot.send("Use " + command_character + "spam <times> <message>", data.command.channel)
+                    bot.send("Use " + command_character + "spam <times> <message>", data.channel)
 
 
             if cmd == "quote":
                 try:
                     if args[1].lower() == "add":
-                        if data.sender.entity.nickname not in bot_owner:
+                        if data.sender.nickname not in bot_owner:
                             open(file_quotes_buffer, "a").write(" ".join(args[2:]) + "\n")
-                            bot.send("Quote will be added to the main list once an admin approves it.", data.command.channel)
+                            bot.send("Quote will be added to the main list once an admin approves it.", data.channel)
                         else:
                             open(file_quotes, "a").write(" ".join(args[2:]) + "\n")
-                            bot.send("Quote added! Also cocks.", data.command.channel)
+                            bot.send("Quote added! Also cocks.", data.channel)
 
                     elif args[1].lower() == "count":
                         with open(file_quotes) as f:
@@ -500,15 +561,15 @@ while True:
                             for i, l in enumerate(f):
                                 pass
                                 x = i
-                            bot.send("I have " + str(x) + " quotes.", data.command.channel)
+                            bot.send("I have " + str(x) + " quotes.", data.channel)
 
                     elif args[1].lower() == "read":
                         f = open(file_quotes, "r").readlines()
-                        bot.send("Quote #" + args[2] + ": " + f[int(args[2])] + '"', data.command.channel)
+                        bot.send("Quote #" + args[2] + ": " + f[int(args[2])] + '"', data.channel)
 
                     elif args[1].lower() == "approve":
-                        if data.sender.entity.nickname not in bot_owner:
-                            bot.send(prompt_priviledge_required, data.command.channel)
+                        if data.sender.nickname not in bot_owner:
+                            bot.send(prompt_priviledge_required, data.channel)
                         else:
                             try:
                                 if args[2].lower() == "all":
@@ -516,27 +577,26 @@ while True:
                                     open(file_quotes_buffer, "w").close()
                                     for i in f:
                                         open(file_quotes, "a").write(str(i))
-                                        bot.send("All quotes approved!", data.command.channel)
+                                        bot.send("All quotes approved!", data.channel)
                                 elif args[2].lower() == "show":
                                     f = open(file_quotes_buffer, "r").readlines()
                                     quotenumber = -1
                                     for i in f:
                                         i = i.split('\n')[0]
                                         quotenumber += 1
-                                        bot.send("Quote #" + str(quotenumber) + ": " + i, data.command.channel)
+                                        bot.send("Quote #" + str(quotenumber) + ": " + i, data.channel)
                                 else:
                                     try:
                                         f = open(file_quotes_buffer, "r").readlines()
                                         open(file_quotes, "a").write(f[int(args[2])])
                                         quote = f[int(args[2])]
-                                        bot.send("Approved quote " + args[2] + " - " + quote.split("\n")[0], data.command.channel)
-                                        os.system("sed '%rd' %r > quotes_buffer_temp; mv quotes_buffer_temp %r" % (args[2], file_quotes_buffer, file_quotes_buffer))
+                                        bot.send("Approved quote " + args[2] + " - " + quote.split("\n")[0], data.channel)
                                     except Exception as e:
-                                        bot.send("Use " + command_character + "quote approve <number>", data.command.channel)
+                                        bot.send("Use " + command_character + "quote approve <number>", data.channel)
                             except:
-                                bot.send("Use " + command_character + "quote approve all/show/<number_to_approve>", data.command.channel)
+                                bot.send("Use " + command_character + "quote approve all/show/<number_to_approve>", data.channel)
                 except:
-                    bot.send("Use " + command_character + "quote read/add/count", data.command.channel)
+                    bot.send("Use " + command_character + "quote read/add/count", data.channel)
 
 
             if cmd == "ascii":
@@ -544,10 +604,10 @@ while True:
                     figlet = Figlet(args[1])
                     render = figlet.renderText(args[2]).split('\n')
                     for ascii in render:
-                        bot.send(Color(ascii, random.choice(IRCColors.all_colors)), data.command.channel)
+                        bot.send(Color(ascii, random.choice(IRCColors.all_colors)), data.channel)
                 except Exception as e:
                     print(e)
-                    bot.send("Use " + command_character + "ascii <font> <text>. For a list of fonts visit https://pastebin.com/TvwCcNUd ",data.command.channel)
+                    bot.send("Use " + command_character + "ascii <font> <text>. For a list of fonts visit https://pastebin.com/TvwCcNUd ",data.channel)
 
 
             if cmd == "memetic":
@@ -555,9 +615,9 @@ while True:
                 text_model = markovify.Text(text)
                 try:
                     output = text_model.make_short_sentence(10000)
-                    bot.send('"' + output + '"', data.command.channel)
+                    bot.send('"' + output + '"', data.channel)
                 except:
-                    bot.send("Whoops! COCKS!", data.command.channel)
+                    bot.send("Whoops! COCKS!", data.channel)
 
 
             if cmd == "art":
@@ -565,23 +625,30 @@ while True:
                     if args[1].lower() == "draw":
                         start_new_thread = True
                         for thread in art_threads:
-                            if thread.channel == data.command.channel:
+                            if thread.channel == data.channel:
                                 start_new_thread = False
                                 break
                         if start_new_thread:
                             try:
-                                if len(args) == 3:
-                                    file = args[2].replace(".", "") + ".txt"
+                                file = None
+                                files = []
+                                for (dirpath, dirnames, filenames) in walk("art"):
+                                    files.extend(filenames)
+                                    break
+
+                                if len(args) >= 3:
+                                    #Local File Injection Fix
+                                    file_temp = " ".join(args[2:]) + ".txt"
+                                    if file_temp in files:
+                                        file = file_temp
+                                    else:
+                                        bot.send("Whoops! COCKS!", data.channel)
                                 else:
-                                    files = []
-                                    for (dirpath, dirnames, filenames) in walk("art"):
-                                        files.extend(filenames)
-                                        break
                                     file = random.choice(files)
 
-                                ArtThread(data.command.channel, open("art/" + file, "r").read()).start()
+                                ArtThread(data.channel, open("art/" + file, "r").read()).start()
                             except:
-                                bot.send("Whoops! COCKS!", data.command.channel)
+                                bot.send("Whoops! COCKS!", data.channel)
                     elif args[1].lower() == "list":
                         files = []
                         for (dirpath, dirnames, filenames) in walk("art"):
@@ -592,11 +659,11 @@ while True:
                         for file in files:
                             art_list.append(".".join(file.split(".")[:-1]))
 
-                        bot.send("Art List: " + ", ".join(art_list), data.command.channel)
+                        bot.send("Art List: " + ", ".join(art_list), data.channel)
                     else:
-                        bot.send("Use " + command_character + "art list/draw <optional:name>.", data.command.channel)
+                        bot.send("Use " + command_character + "art list/draw <optional:name>.", data.channel)
                 except:
-                    bot.send("Use " + command_character + "art list/draw <optional:name>.", data.command.channel)
+                    bot.send("Use " + command_character + "art list/draw <optional:name>.", data.channel)
 
 
             if cmd == "poll":
@@ -604,7 +671,7 @@ while True:
                     if args[1].lower() == "new":
                         start_new_thread = True
                         for thread in poll_threads:
-                            if thread.channel == data.command.channel:
+                            if thread.channel == data.channel:
                                 start_new_thread = False
                                 break
                         if start_new_thread:
@@ -613,99 +680,88 @@ while True:
                                 for option in args[3:]:
                                     options.append(PollOption(option))
                                 if options == []:
-                                    bot.send('No options specified. Please use "' + command_character + 'help poll" for more info.', data.command.channel)
+                                    bot.send('No options specified. Please use "' + command_character + 'help poll" for more info.', data.channel)
                                 else:
-                                    PollThread(data.sender.entity.nickname, data.command.channel, args[2], options).start()
+                                    PollThread(data.sender.nickname, data.channel, args[2], options).start()
                             except:
-                                bot.send("Whoops! COCKS!", data.command.channel)
+                                bot.send("Whoops! COCKS!", data.channel)
                     elif args[1] == "vote":
                         vote_valid = True
                         vote_thread = None
                         vote_option = None
                         for thread in poll_threads:
-                            if thread.channel == data.command.channel:
+                            if thread.channel == data.channel:
                                 vote_thread = thread
                                 for option in thread.options:
-                                    if data.sender.entity.nickname in option.votes:
+                                    if data.sender.nickname in option.votes:
                                         vote_valid = False
                                     if args[2] == option.description:
                                         vote_option = option
                             break
                         if vote_thread == None:
-                            bot.send("There are no polls running.", data.command.channel)
+                            bot.send("There are no polls running.", data.channel)
                         else :
                             if vote_valid:
                                 if vote_option == None:
-                                    bot.send('No suck option: "' + args[2] + '"', data.command.channel)
+                                    bot.send('No such option: "' + args[2] + '"', data.channel)
                                 else:
                                     #Actually add the vote
-                                    vote_option.votes.append(data.sender.entity.nickname)
+                                    vote_option.votes.append(data.sender.nickname)
                             else:
-                                bot.send("Sorry " + data.sender.entity.nickname + ", you already voted.", data.command.channel)
+                                bot.send("Sorry " + data.sender.nickname + ", you already voted.", data.channel)
                     elif args[1] == "end":
                         thread_to_end = None
                         for thread in poll_threads:
-                            if thread.channel == data.command.channel:
+                            if thread.channel == data.channel:
                                 thread_to_end = thread
                                 break
                         if thread_to_end == None:
-                            bot.send("There are no polls running.", data.command.channel)
+                            bot.send("There are no polls running.", data.channel)
                         else:
-                            if thread_to_end.nickname == data.sender.entity.nickname or data.sender.entity.nickname in bot_owner:
+                            if thread_to_end.nickname == data.sender.nickname or data.sender.nickname in bot_owner:
                                 thread_to_end.end()
                             else:
-                                bot.send("You did not create that poll, GTFO. ", data.command.channel)
+                                bot.send("You did not create that poll, GTFO. ", data.channel)
                 except:
-                    bot.send("Whoops! COCKS!", data.command.channel)
+                    bot.send("Whoops! COCKS!", data.channel)
+
+
+            if cmd == "flipcoin":
+                bot.send("Coin landed on: " + random.choice(["Heads", "Tails"]), data.channel)
 
 
             if cmd == "help":
-                commands = ["spam", "ascii", "quote", "art", "version", "memetic", "poll"]
-                op_commands = commands + ["die", "restart"]
 
-                help_spam    = "spam <times> <text> - Floods the channel with text."
-                help_quote   = "quote <add/count/read> - Inspirational quotes by 4chan."
-                help_art     = "art list/draw <optional:name> - Draw like picasso!"
-                help_ascii   = "ascii <font> <text> - Transform text into ascii art made of... text... Font list: https://pastebin.com/TvwCcNUd"
-                help_version = "version - Prints bot version"
-                help_memetic = "memetic - Generates a quote using ARTIFICIAL INTELLIGENCE!!!"
-                help_poll    = "poll new <description> <option1> <option2> ... / vote <option> / end - DEMOCRACY, BITCH!"
-
-                help_die     = "die - [Admins Only] Rapes the bot, murders it, does funny things to its corpse, and disposes of it."
-                help_restart = "restart - [Admins Only] Did you try turning it Off and On again?"
+                help_data = [         #Admin Only?
+                    HelpData("spam",     False, "spam <times> <text> - Floods the channel with text."),
+                    HelpData("quote",    False, "quote <add/count/read> - Inspirational quotes by 4chan."),
+                    HelpData("art",      False, "art list/draw <optional:name> - Draw like picasso!"),
+                    HelpData("ascii",    False, "ascii <font> <text> - Transform text into ascii art made of... text... Font list: https://pastebin.com/TvwCcNUd"),
+                    HelpData("version",  False, "version - Prints bot version and GitHub link."),
+                    HelpData("memetic",  False, "memetic - Generates a quote using ARTIFICIAL INTELLIGENCE!!!"),
+                    HelpData("poll",     False, "poll new <description> <option1> <option2> ... / vote <option> / end - DEMOCRACY, BITCH!"),
+                    HelpData("flipcoin", False, "flipcoin - Unlike Effy, it generates a random output!"),
+                    HelpData("die",      True,  "die - [Admins Only] Rapes the bot, murders it, does funny things to its corpse, and disposes of it."),
+                    HelpData("restart",  True,  "restart - [Admins Only] Did you try turning it Off and On again?")
+                ]
 
                 if len(args) == 1:
-                    if data.sender.entity.nickname in bot_owner:
-                        bot.send("Available commands: " + ", ".join(op_commands), data.command.channel)
-                    else:
-                        bot.send("Available commands: " + ", ".join(commands), data.command.channel)
-                    bot.send("Use " + command_character + "help <command> for more detailed info.", data.command.channel)
+                    command_list = []
+
+                    for command in help_data:
+                        command_list.append(command.command)
+
+                    bot.send("Available commands: " + ", ".join(command_list), data.channel)
+                    bot.send("Use " + command_character + "help <command> for more detailed info.", data.channel)
                 else:
-                    try:
-                        #TODO: Rename that variable to something less ridiculous
-                        help_me = args[1].lower()
-                        help_output = 'Unknown command "' + args[1] + '". Please use "' + command_character + 'help" for a list of available commands.'
+                    command = " ".join(args[1:])
 
-                        if help_me == "spam":
-                            help_output = help_spam
-                        elif help_me == "quote":
-                            help_output = help_quote
-                        elif help_me == "art":
-                            help_output = help_art
-                        elif help_me == "ascii":
-                            help_output = help_ascii
-                        elif help_me == "version":
-                            help_output = help_version
-                        elif help_me == "memetic":
-                            help_output = help_memetic
-                        elif help_me == "die":
-                            help_output = help_die
-                        elif help_me == "restart":
-                            help_output = help_restart
-                        elif help_me == "poll":
-                            help_output = help_poll
+                    help_output = 'Unknown command "' + command + '". Please use "' + command_character + 'help" for a list of available commands.'
 
-                        help_output = data.sender.entity.nickname + ", " + command_character + help_output
-                        bot.send(help_output, data.command.channel)
-                    except:
-                        bot.send("Whoops! COCKS!", data.command.channel)
+                    for help in help_data:
+                        if help.command.lower() == command.lower():
+                            help_output = help.command + " " + help.description
+                            break
+
+                    help_output = data.sender.nickname + ", " + command_character + help_output
+                    bot.send(help_output, data.channel)
