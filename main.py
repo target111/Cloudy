@@ -1,4 +1,4 @@
-version = "2.1"
+version = "2.1.1"
 
 import socket
 import ssl
@@ -22,10 +22,9 @@ import markovify
 irc_server        =  "irc.anonops.com"
 irc_port          =   6697
 irc_nickname      =  "wtfboom"
-irc_nickserv_pwd  =  "ushallnotpass"      #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
+irc_nickserv_pwd  =  "fy8tgheuty"      #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
 irc_channels      =  ["#spam", "#bots"]
 
-timeout = 121
 command_character = "="
 
 file_quotes = "quotes.txt"
@@ -117,7 +116,7 @@ class IRC_Client(object):
         self.irc_ssl = ssl.wrap_socket(self.sock)
 
         self.irc_ssl.connect((server.address, server.port))
-        self.irc_ssl.settimeout(timeout)
+        self.irc_ssl.setblocking(True)
 
         self.send_raw("NICK " + self.nickname)
         self.send_raw("USER " + self.nickname + " 0 * :HIIMFUN")
@@ -565,7 +564,10 @@ while True:
 
                     elif args[1].lower() == "read":
                         f = open(file_quotes, "r").readlines()
-                        bot.send("Quote #" + args[2] + ": " + f[int(args[2])] + '"', data.channel)
+                        try:
+                            bot.send("Quote #" + args[2] + ": " + f[int(args[2])] + '"', data.channel)
+                        except:
+                            bot.send("I only have " + str(len(f) - 1) + " quotes!", data.channel)
 
                     elif args[1].lower() == "approve":
                         if data.sender.nickname not in bot_owner:
@@ -646,7 +648,8 @@ while True:
                                 else:
                                     file = random.choice(files)
 
-                                ArtThread(data.channel, open("art/" + file, "r").read()).start()
+                                if not file == None:
+                                    ArtThread(data.channel, open("art/" + file, "r").read()).start()
                             except:
                                 bot.send("Whoops! COCKS!", data.channel)
                     elif args[1].lower() == "list":
