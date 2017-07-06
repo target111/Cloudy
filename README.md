@@ -16,7 +16,7 @@ A "dope af" IRC bot written in Python 3 using sockets.
 -   markovify
 
 ## Known Issues:
--   Probably won't work on 50% of IRC's, although it should be easy to modify so that it works.
+-   No TLS, no regular username/pass login. Probably won't work on 50% of IRC's, although it should be easy to modify so that it works.
 
 ## Contibutors:
 -   OverclockedSanic
