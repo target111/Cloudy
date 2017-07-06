@@ -17,3 +17,7 @@ A "dope af" IRC bot written in Python 3 using sockets.
 
 ## Known Issues:
 -   All of them!
+
+## Contibutors:
+-   OverclockedSanic
+-   target
