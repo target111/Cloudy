@@ -9,6 +9,7 @@ from enum import Enum
 import os
 import sys
 from os import walk
+import feedparser
 
 from pyfiglet import Figlet
 import markovify
@@ -23,18 +24,45 @@ irc_server        =  "irc.anonops.com"
 irc_port          =   6697
 irc_nickname      =  "wtfboom"
 irc_nickserv_pwd  =  "ushallnotpass"      #TODO: DO NOT STORE THE PASSWORD HERE, CHANGE IT
-irc_channels      =  ["#spam", "#bots"]
+irc_channels      =  ["#spam","#bots"]
 
 command_character = "="
 
 file_quotes = "quotes.txt"
 file_quotes_buffer = "quotes_buffer.txt"
 
-#TODO: Either use admin status as owner or load form config
-#TODO: Also, insecure. someone can set their nick to yours and quickly execute a command before nickserv changes it
-bot_owner = ["target_",  "North_Star", "OverclockedSanic", "darko", "scribbler", "nautilus", "Gen0cide"]
-
 prompt_priviledge_required = "This command requires sudo access, kid."
+identify_required = "IDENTIFY YOURSELF!"
+
+allheadlines = []
+
+printed_headlines = []
+
+newsurls = {
+    '4chan Literature Board': 'https://boards.4chan.org/lit/index.rss',
+    '4chan History Board': 'https://boards.4chan.org/his/index.rss',
+    '4chan Cooking Board': 'http://boards.4chan.org/ck/index.rss',
+    '4chan Music Board': 'http://boards.4chan.org/mu/index.rss',
+    '4chan Math and Science Board': 'http://boards.4chan.org/sci/index.rss',
+    '4chan Technology Board': 'http://boards.4chan.org/g/index.rss',
+    '4chan Television and Film Board': 'http://boards.4chan.org/tv/index.rss',
+    '4chan Question and Answer Board': 'http://boards.4chan.org/qa/index.rss',
+    '4chan Trash Board': 'http://boards.4chan.org/trash/',
+    '4chan International Board': 'http://boards.4chan.org/int/index.rss',
+    'Reddit r/art': 'http://reddit.com/r/Art/.rss',
+    'Reddit r/AskReddit':  'http://reddit.com/r/AskReddit/.rss',
+    'Rediit r/aww': 'http://reddit.com/r/aww/.rss',
+    'Reddit r/funny': 'http://reddit.com/r/funny/.rss',
+    'Reddit r/gifs': 'http://reddit.com/r/gifs/.rss',
+    'Reddit r/Jokes': 'http://reddit.com/r/Jokes/.rss',
+    'Reddit r/quotes': 'http://reddit.com/r/Quotes/.rss',
+
+
+
+
+
+
+}
 
 #############################################################################################################
 #############################################################################################################
@@ -147,11 +175,15 @@ class IRC_Client(object):
         self.send_raw("MODE " + nickname + " +" + mode)
 
     def recieve_raw(self):
-        return self.irc_ssl.recv(4096).decode("UTF8")
+        return self.irc_ssl.recv(4096).decode("UTF-8","ignore")
+
+    def status(self, nick):
+        self.send_raw("PRIVMSG NICKSERV STATUS " + nick)
+        global user_data
+        user_data = self.recieve()
 
     def recieve(self):
         raw = self.recieve_raw()
-
         print(raw)
 
         return IRC_Data(raw)
@@ -233,6 +265,16 @@ class IRC_Data(object):
                 pass
 
             try:
+                if input.split("!")[0] == "NickServ":
+                    self.type_command = IRC_CommandType.Nickserv
+                    try:
+                        self.data = int(input.split()[5])
+                    except:
+                        self.data = None
+            except:
+                pass
+
+            try:
                 if input.split()[1] == "NICK":
                     self.type_command = IRC_CommandType.Nick
                     self.nickname = input.split()[2]
@@ -260,7 +302,7 @@ class IRC_Data(object):
             try:
                 if input.split()[0] == "PING":
                     self.type_command = IRC_CommandType.Ping
-                    self.data = input.split()[1][1:]
+                    self.data = input.split()[1]
             except:
                 pass
 
@@ -278,6 +320,7 @@ class IRC_CommandType(Enum):
     Kick    =  9
     Topic   = 10
     Quit    = 11
+    Nickserv= 12
 
 class IRC_SenderType(Enum):
     Server = 0
@@ -300,8 +343,8 @@ class IRC_Mode:
 
 class FirstPingThread(Thread):
     def run(self):
-        pingis = bot.irc_ssl.recv(9000).decode("UTF-8")
-        pingis = bot.irc_ssl.recv(9000).decode("UTF-8")
+        pingis = bot.irc_ssl.recv(9000).decode()
+        pingis = bot.irc_ssl.recv(9000).decode()
         if pingis.split()[0] == "PING":
             bot.send_raw("PONG " + pingis.split()[1][1:])
 
@@ -325,6 +368,25 @@ print(ConsoleColors.OKBLUE + """
 
 bot = IRC_Client(irc_nickname)
 server = IRC_Server(irc_server, irc_port)
+
+try:
+    f = open("admins.txt", "r")
+
+except:
+    printEx("No admins file found!", PrintType.Warning)
+    printEx("Creating one for you..", PrintType.Info)
+    f = open("admins.txt", "a")
+    admins=input("Enter your irc nickname: ")
+    f.write(admins+"\n")
+    f.close()
+    f = open("admins.txt", "r")
+
+lines = f.read()
+bot_owner = []
+for admin in lines.split("\n"):
+    bot_owner.append(admin)
+f.close()
+del bot_owner[-1]
 
 time.sleep(2)
 
@@ -384,6 +446,34 @@ class SpamThread(Thread):
 
         spam_threads.remove(self)
 
+feedparse_threads = []
+
+class feedparse(Thread):
+    def __init__(self, nickname, channel):
+        Thread.__init__(self)
+        self.channel  = channel
+        self.nickname = nickname
+
+    def getHeadlines(rss_url):
+        headlines = []
+        feed = feedparser.parse(rss_url)
+        for newsitem in feed['items']:
+            headlines.append(newsitem['title'] + ' || ' + newsitem['link'])
+        return headlines
+
+    def run(self):
+        feedparse_threads.append(self)
+        while RUNNING:
+            for key,url in newsurls.items():
+                if newsurls.items() not in allheadlines:
+                    allheadlines.extend(feedparse.getHeadlines(url))
+                    if allheadlines[len(allheadlines) - 1] not in printed_headlines:
+                        bot.send((allheadlines[len(allheadlines) - 1]), self.channel)
+                        printed_headlines.append(allheadlines[len(allheadlines) - 1])
+                time.sleep(4)
+
+        bot.send("Done!", self.channel)
+        feedparse_threads.remove(self)
 
 art_threads = []
 
@@ -402,7 +492,6 @@ class ArtThread(Thread):
 
         art_threads.remove(self)
 
-
 poll_threads = []
 
 class PollThread(Thread):
@@ -417,14 +506,14 @@ class PollThread(Thread):
         self.time_started = time.time()
         poll_threads.append(self)
 
-        bot.send('Poll started: "' + self.description + '". Vote using =poll vote <option>. Poll ends in 60 seconds!', self.channel)
+        bot.send('Poll started: "' + self.description + '". Vote using =poll vote <option>. Poll ends in 5 minutes!', self.channel)
 
-        while time.time() - self.time_started < 60:
+        while time.time() - self.time_started < 300:
             time.sleep(0.1)
             if self not in poll_threads:
                 break
 
-        if self in poll_threads:
+        if self not in poll_threads:
             self.end()
 
     def end(self):
@@ -509,19 +598,27 @@ while True:
                 if data.sender.nickname not in bot_owner:
                     bot.send(prompt_priviledge_required, data.channel)
                 else:
-                    bot.send("oh...okay. :'(", data.channel)
-                    bot.exit()
-                    exit()
+                    bot.status(data.sender.nickname)
+                    if user_data.data != None and user_data.data == 3:
+                        bot.send("oh...okay. :'(", data.channel)
+                        bot.exit()
+                        exit()
+                    else:
+                        bot.send(identify_required, data.channel)
 
 
             if cmd == "restart":
                 if data.sender.nickname not in bot_owner:
                     bot.send(prompt_priviledge_required, data.channel)
                 else:
-                    bot.send("sure...", data.channel)
-                    os.execv(sys.executable, ["python3"] + sys.argv)
-                    bot.exit()
-                    exit()
+                    bot.status(data.sender.nickname)
+                    if user_data.data != None and user_data.data == 3:
+                        bot.send("sure...", data.channel)
+                        os.execv(sys.executable, ["python3"] + sys.argv)
+                        bot.exit()
+                        exit()
+                    else:
+                        bot.send(identify_required, data.channel)
 
 
             if cmd == "spam":
@@ -544,6 +641,55 @@ while True:
                     bot.send("Use " + command_character + "spam <times> <message>", data.channel)
 
 
+            if cmd == "admin":
+                if args[1].lower() == "list":
+                    if data.sender.nickname in bot_owner:
+                        bot.status(data.sender.nickname)
+                        if user_data.data != None and user_data.data == 3:
+                            bot.send("Admins are: " + str(", ".join(bot_owner)), data.channel)
+                        else:
+                            bot.send(identify_required, data.channel)
+                    else:
+                        bot.send(prompt_priviledge_required, data.channel)
+
+                elif args[1].lower() == "remove":
+                    if data.sender.nickname not in bot_owner:
+                        bot.send(prompt_priviledge_required, data.channel)
+
+                    else:
+                        bot.status(data.sender.nickname)
+                        if user_data.data != None and user_data.data == 3:
+                            if args[2] in bot_owner:
+                                f = open("admins.txt", "r")
+                                lines = f.readlines()
+                                f.close()
+                                f = open("admins.txt", "w")
+                                for line in lines:
+                                    if line != args[2] + "\n":
+                                        f.write(line)
+                                bot_owner.remove(args[2])
+                            else:
+                                bot.send("Admin doesn't exist!", data.channel)
+                        else:
+                            bot.send(identify_required, data.channel)
+
+                elif args[1].lower() == "add":
+                    if data.sender.nickname not in bot_owner:
+                        bot.send(prompt_priviledge_required, data.channel)
+
+                    else:
+                        bot.status(data.sender.nickname)
+                        if user_data.data != None and user_data.data == 3:
+                            f = open("admins.txt", "a")
+                            f.write(args[2]+"\n")
+                            f.close()
+                            bot_owner.append(args[2])
+                        else:
+                            bot.send(identify_required, data.channel)
+                else:
+                    bot.send("Unknown option. Please use "+command_character+"help "+cmd, data.channel)
+
+
             if cmd == "quote":
                 try:
                     if args[1].lower() == "add":
@@ -551,8 +697,13 @@ while True:
                             open(file_quotes_buffer, "a").write(" ".join(args[2:]) + "\n")
                             bot.send("Quote will be added to the main list once an admin approves it.", data.channel)
                         else:
-                            open(file_quotes, "a").write(" ".join(args[2:]) + "\n")
-                            bot.send("Quote added! Also cocks.", data.channel)
+                            bot.status(data.sender.nickname)
+                            if user_data.data != None and user_data.data == 3:
+                                open(file_quotes, "a").write(" ".join(args[2:]) + "\n")
+                                bot.send("Quote added! Also cocks.", data.channel)
+                            else:
+                                bot.send(identify_required, data.channel)
+
 
                     elif args[1].lower() == "count":
                         with open(file_quotes) as f:
@@ -573,30 +724,35 @@ while True:
                         if data.sender.nickname not in bot_owner:
                             bot.send(prompt_priviledge_required, data.channel)
                         else:
-                            try:
-                                if args[2].lower() == "all":
-                                    f = open(file_quotes_buffer, "r").readlines()
-                                    open(file_quotes_buffer, "w").close()
-                                    for i in f:
-                                        open(file_quotes, "a").write(str(i))
-                                        bot.send("All quotes approved!", data.channel)
-                                elif args[2].lower() == "show":
-                                    f = open(file_quotes_buffer, "r").readlines()
-                                    quotenumber = -1
-                                    for i in f:
-                                        i = i.split('\n')[0]
-                                        quotenumber += 1
-                                        bot.send("Quote #" + str(quotenumber) + ": " + i, data.channel)
-                                else:
-                                    try:
+                            bot.status(data.sender.nickname)
+                            if user_data.data != None and user_data.data == 3:
+                                try:
+                                    if args[2].lower() == "all":
                                         f = open(file_quotes_buffer, "r").readlines()
-                                        open(file_quotes, "a").write(f[int(args[2])])
-                                        quote = f[int(args[2])]
-                                        bot.send("Approved quote " + args[2] + " - " + quote.split("\n")[0], data.channel)
-                                    except Exception as e:
-                                        bot.send("Use " + command_character + "quote approve <number>", data.channel)
-                            except:
-                                bot.send("Use " + command_character + "quote approve all/show/<number_to_approve>", data.channel)
+                                        open(file_quotes_buffer, "w").close()
+                                        for i in f:
+                                            open(file_quotes, "a").write(str(i))
+                                        bot.send("All quotes approved!", data.channel)
+                                    elif args[2].lower() == "show":
+                                        f = open(file_quotes_buffer, "r").readlines()
+                                        quotenumber = -1
+                                        for i in f:
+                                            i = i.split('\n')[0]
+                                            quotenumber += 1
+                                        bot.send("Quote #" + str(quotenumber) + ": " + i, data.channel)
+                                    else:
+                                        try:
+                                            f = open(file_quotes_buffer, "r").readlines()
+                                            open(file_quotes, "a").write(f[int(args[2])])
+                                            quote = f[int(args[2])]
+                                            bot.send("Approved quote " + args[2] + " - " + quote.split("\n")[0], data.channel)
+                                        except Exception as e:
+                                            bot.send("Use " + command_character + "quote approve <number>", data.channel)
+                                except:
+                                    bot.send("Use " + command_character + "quote approve all/show/<number_to_approve>", data.channel)
+                            else:
+                                bot.send(identify_required, data.channel)
+
                 except:
                     bot.send("Use " + command_character + "quote read/add/count", data.channel)
 
@@ -620,6 +776,50 @@ while True:
                     bot.send('"' + output + '"', data.channel)
                 except:
                     bot.send("Whoops! COCKS!", data.channel)
+
+
+            if cmd == "feed":
+                try:
+                    if args[1].lower() == "on":
+                        if data.sender.nickname not in bot_owner:
+                            bot.send(prompt_priviledge_required, data.channel)
+                        else:
+                            bot.status(data.sender.nickname)
+                            if user_data.data != None and user_data.data == 3:
+                                start_new_thread = True
+                                for thread in feedparse_threads:
+                                    if thread.channel == data.channel:
+                                        bot.send("Already running!", data.channel)
+                                        start_new_thread = False
+                                        break
+                                if start_new_thread:
+                                    RUNNING=True
+                                    feedparse(data.sender.nickname, data.channel).start()
+                                    print(feedparse_threads)
+                            else:
+                                bot.send(identify_required, data.channel)
+
+                    elif args[1].lower() == "off":
+                        thread_to_end = None
+                        for thread in feedparse_threads:
+                            if thread.channel == data.channel:
+                                thread_to_end = thread
+                                break
+                        if thread_to_end == None:
+                            bot.send("Feed is not running.", data.channel)
+                        else:
+                            if data.sender.nickname in bot_owner:
+                                bot.status(data.sender.nickname)
+                                if user_data.data != None and user_data.data == 3:
+                                    bot.send("Stoping..", data.channel)
+                                    RUNNING=False
+                                else:
+                                    bot.send(identify_required, data.channel)
+                            else:
+                                bot.send(prompt_priviledge_required, data.channel)
+
+                except Exception as e:
+                    print(e)
 
 
             if cmd == "art":
@@ -667,37 +867,45 @@ while True:
                         bot.send("Use " + command_character + "art list/draw <optional:name>.", data.channel)
                 except:
                     bot.send("Use " + command_character + "art list/draw <optional:name>.", data.channel)
-
-
             if cmd == "poll":
                 try:
                     if args[1].lower() == "new":
-                        start_new_thread = True
-                        for thread in poll_threads:
-                            if thread.channel == data.channel:
-                                start_new_thread = False
-                                break
-                        if start_new_thread:
-                            try:
-                                options = []
-                                for option in args[3:]:
-                                    options.append(PollOption(option))
-                                if options == []:
-                                    bot.send('No options specified. Please use "' + command_character + 'help poll" for more info.', data.channel)
-                                else:
-                                    PollThread(data.sender.nickname, data.channel, args[2], options).start()
-                            except:
-                                bot.send("Whoops! COCKS!", data.channel)
+                        bot.status(data.sender.nickname)
+                        if user_data.data != None and user_data.data == 3:
+                            start_new_thread = True
+                            for thread in poll_threads:
+                                if thread.channel == data.channel:
+                                    start_new_thread = False
+                                    break
+                            if start_new_thread:
+                                try:
+                                    options = []
+                                    for option in args[3:]:
+                                        options.append(PollOption(option))
+                                    if options == []:
+                                        bot.send('No options specified. Please use "' + command_character + 'help poll" for more info.', data.channel)
+                                    else:
+                                        PollThread(data.sender.nickname, data.channel, args[2], options).start()
+                                except:
+                                    bot.send("Whoops! COCKS!", data.channel)
+                        else:
+                            bot.send(identify_required, data.channel)
+
                     elif args[1] == "vote":
                         vote_valid = True
                         vote_thread = None
                         vote_option = None
+                        bot.status(data.sender.nickname)
                         for thread in poll_threads:
                             if thread.channel == data.channel:
                                 vote_thread = thread
                                 for option in thread.options:
-                                    if data.sender.nickname in option.votes:
-                                        vote_valid = False
+                                    if user_data.data != None and user_data.data == 3:
+                                        if data.sender.nickname in option.votes:
+                                            vote_valid = False
+                                    else:
+                                        bot.send(identify_required, data.channel)
+
                                     if args[2] == option.description:
                                         vote_option = option
                             break
@@ -712,6 +920,7 @@ while True:
                                     vote_option.votes.append(data.sender.nickname)
                             else:
                                 bot.send("Sorry " + data.sender.nickname + ", you already voted.", data.channel)
+
                     elif args[1] == "end":
                         thread_to_end = None
                         for thread in poll_threads:
@@ -722,7 +931,12 @@ while True:
                             bot.send("There are no polls running.", data.channel)
                         else:
                             if thread_to_end.nickname == data.sender.nickname or data.sender.nickname in bot_owner:
-                                thread_to_end.end()
+                                bot.status(data.sender.nickname)
+                                if user_data.data != None and user_data.data == 3:
+                                    thread_to_end.end()
+                                else:
+                                    bot.send(identify_required, data.channel)
+
                             else:
                                 bot.send("You did not create that poll, GTFO. ", data.channel)
                 except:
@@ -745,7 +959,9 @@ while True:
                     HelpData("poll",     False, "poll new <description> <option1> <option2> ... / vote <option> / end - DEMOCRACY, BITCH!"),
                     HelpData("flipcoin", False, "flipcoin - Unlike Effy, it generates a random output!"),
                     HelpData("die",      True,  "die - [Admins Only] Rapes the bot, murders it, does funny things to its corpse, and disposes of it."),
-                    HelpData("restart",  True,  "restart - [Admins Only] Did you try turning it Off and On again?")
+                    HelpData("restart",  True,  "restart - [Admins Only] Did you try turning it Off and On again?"),
+                    HelpData("feed",     True,  "feed - [Admins Only] on/off - rss feed system"),
+                    HelpData("admin",    True,  "admin - [Admins Only] list/remove/add  - Manage list of admins")
                 ]
 
                 if len(args) == 1:
