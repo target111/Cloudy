@@ -14,6 +14,7 @@ A "dope af" IRC bot written in Python 3 using sockets.
 -   Python 3
 -   pyfiglet
 -   markovify
+-   feedparser
 
 ## Known Issues:
 -   No SASL, some leftover sloppy code, etc...
