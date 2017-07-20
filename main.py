@@ -1,4 +1,4 @@
-version = "2.1.1"
+version = "2.2"
 
 import socket
 import ssl
@@ -620,6 +620,66 @@ while True:
                     else:
                         bot.send(identify_required, data.channel)
 
+            if cmd == "msg" and data.sender.nickname in bot_owner and data.channel == irc_nickname:
+                if data.sender.nickname not in bot_owner:
+                    bot.send(prompt_priviledge_required, data.sender.nickname)
+                else:
+                    bot.status(data.sender.nickname)
+                    if user_data.data != None and user_data.data == 3:
+                        try:
+                            if args[1] in irc_channels:
+                                bot.send(" ".join(args[2:]),args[1])
+                            else:
+                                bot.send("Not allowed", data.sender.nickname)
+                        except:
+                            bot.send("Use "+command_character+"msg <channel> <message>", data.sender.nickname)
+                    else:
+                        bot.send(identify_required, data.sender.nickname)
+
+            if cmd == "part" and data.sender.nickname in bot_owner and data.channel == irc_nickname:
+                if data.sender.nickname not in bot_owner:
+                    bot.send(prompt_priviledge_required, data.sender.nickname)
+                else:
+                    bot.status(data.sender.nickname)
+                    if user_data.data != None and user_data.data == 3:
+                        try:
+                            if args[1] in irc_channels:
+                                bot.send_raw("PART "+args[1])
+                            else:
+                                bot.send("Not allowed", data.sender.nickname)
+                        except:
+                            bot.send("Use "+command_character+"part <channel>", data.sender.nickname)
+                    else:
+                        bot.send(identify_required, data.sender.nickname)
+
+            if cmd == "join" and data.sender.nickname in bot_owner and data.channel == irc_nickname:
+                if data.sender.nickname not in bot_owner:
+                    bot.send(prompt_priviledge_required, data.sender.nickname)
+                else:
+                    bot.status(data.sender.nickname)
+                    if user_data.data != None and user_data.data == 3:
+                        try:
+                            if args[1] in irc_channels:
+                                bot.send_raw("JOIN "+args[1])
+                            else:
+                                bot.send("Not allowed!", data.sender.nickname)
+                        except:
+                            bot.send("Use "+command_character+"join <channel>", data.sender.nickname)
+                    else:
+                        bot.send(identify_required, data.sender.nickname)
+
+            if cmd == "mode" and data.sender.nickname in bot_owner and data.channel == irc_nickname:
+                if data.sender.nickname not in bot_owner:
+                    bot.send(prompt_priviledge_required, data.sender.nickname)
+                else:
+                    bot.status(data.sender.nickname)
+                    if user_data.data != None and user_data.data == 3:
+                        try:
+                            bot.send_raw("MODE " + irc_nickname + " " +args[1])
+                        except:
+                            bot.send("Use "+command_character+"mode <mode>")
+                    else:
+                        bot.send(identify_required, data.sender.nickname)
 
             if cmd == "spam":
                 try:
@@ -643,14 +703,14 @@ while True:
 
             if cmd == "admin":
                 if args[1].lower() == "list":
-                    if data.sender.nickname in bot_owner:
+                    if data.sender.nickname not in bot_owner:
+                        bot.send(prompt_priviledge_required, data.channel)
+                    else:
                         bot.status(data.sender.nickname)
                         if user_data.data != None and user_data.data == 3:
                             bot.send("Admins are: " + str(", ".join(bot_owner)), data.channel)
                         else:
                             bot.send(identify_required, data.channel)
-                    else:
-                        bot.send(prompt_priviledge_required, data.channel)
 
                 elif args[1].lower() == "remove":
                     if data.sender.nickname not in bot_owner:
