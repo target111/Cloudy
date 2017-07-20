@@ -13,6 +13,7 @@ import feedparser
 
 from pyfiglet import Figlet
 import markovify
+import pygeoip
 
 #############################################################################################################
 #############################################################################################################
@@ -142,7 +143,6 @@ class IRC_Client(object):
     def connect(self, server):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.irc_ssl = ssl.wrap_socket(self.sock)
-
         self.irc_ssl.connect((server.address, server.port))
         self.irc_ssl.setblocking(True)
 
@@ -700,6 +700,32 @@ while True:
                 except:
                     bot.send("Use " + command_character + "spam <times> <message>", data.channel)
 
+            if cmd == "iplookup":
+                try:
+                    gi_city = pygeoip.GeoIP("GeoLiteCity.dat")
+                    gi_org = pygeoip.GeoIP("GeoIPASNum.dat")
+                    host = socket.getfqdn(args[1])
+                    response = "[IP/Host Lookup] Hostname: %s" % host
+                    try:
+                        response += " | Location: %s" % gi_city.country_name_by_name(args[1])
+                    except AttributeError:
+                        response += ' | Location: Unknown'
+                    except socket.gaierror:
+                        bot.send('[IP/Host Lookup] Unable to resolve IP/Hostname', data.channel)
+
+                    region_data = gi_city.region_by_name(args[1])
+                    try:
+                        region = region_data['region_code'] # pygeoip >= 0.3.0
+                    except KeyError:
+                        region = region_data['region_name'] # pygeoip < 0.3.0
+                    if region:
+                        response += " | Region: %s" % region
+
+                    isp = gi_org.org_by_name(args[1])
+                    response += " | ISP: %s" % isp
+                    bot.send(response, data.channel)
+                except:
+                    bot.send("Please use "+command_character+"help "+cmd, data.channel)
 
             if cmd == "admin":
                 if args[1].lower() == "list":
@@ -1010,18 +1036,19 @@ while True:
             if cmd == "help":
 
                 help_data = [         #Admin Only?
-                    HelpData("spam",     False, "spam <times> <text> - Floods the channel with text."),
-                    HelpData("quote",    False, "quote <add/count/read> - Inspirational quotes by 4chan."),
-                    HelpData("art",      False, "art list/draw <optional:name> - Draw like picasso!"),
-                    HelpData("ascii",    False, "ascii <font> <text> - Transform text into ascii art made of... text... Font list: https://pastebin.com/TvwCcNUd"),
-                    HelpData("version",  False, "version - Prints bot version and GitHub link."),
-                    HelpData("memetic",  False, "memetic - Generates a quote using ARTIFICIAL INTELLIGENCE!!!"),
-                    HelpData("poll",     False, "poll new <description> <option1> <option2> ... / vote <option> / end - DEMOCRACY, BITCH!"),
-                    HelpData("flipcoin", False, "flipcoin - Unlike Effy, it generates a random output!"),
-                    HelpData("die",      True,  "die - [Admins Only] Rapes the bot, murders it, does funny things to its corpse, and disposes of it."),
-                    HelpData("restart",  True,  "restart - [Admins Only] Did you try turning it Off and On again?"),
-                    HelpData("feed",     True,  "feed - [Admins Only] on/off - rss feed system"),
-                    HelpData("admin",    True,  "admin - [Admins Only] list/remove/add  - Manage list of admins")
+                    HelpData("spam",     False, "<times> <text> - Floods the channel with text."),
+                    HelpData("quote",    False, "<add/count/read> - Inspirational quotes by 4chan."),
+                    HelpData("art",      False, "list/draw <optional:name> - Draw like picasso!"),
+                    HelpData("ascii",    False, "<font> <text> - Transform text into ascii art made of... text... Font list: https://pastebin.com/TvwCcNUd"),
+                    HelpData("version",  False, "- Prints bot version and GitHub link."),
+                    HelpData("memetic",  False, "- Generates a quote using ARTIFICIAL INTELLIGENCE!!!"),
+                    HelpData("poll",     False, "new <description> <option1> <option2> ... / vote <option> / end - DEMOCRACY, BITCH!"),
+                    HelpData("flipcoin", False, "- Unlike Effy, it generates a random output!"),
+                    HelpData("die",      True,  "- [Admins Only] Rapes the bot, murders it, does funny things to its corpse, and disposes of it."),
+                    HelpData("restart",  True,  "- [Admins Only] Did you try turning it Off and On again?"),
+                    HelpData("feed",     True,  "- [Admins Only] on/off - rss feed system"),
+                    HelpData("admin",    True,  "- [Admins Only] list/remove/add  - Manage list of admins"),
+                    HelpData("iplookup", False, "<ip> - Ip lookup tool")
                 ]
 
                 if len(args) == 1:
