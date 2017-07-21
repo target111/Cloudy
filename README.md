@@ -9,7 +9,7 @@ A "dope af" IRC bot written in Python 3 using sockets.
 -   SPAM! Some say it's an issue, we say it's a feature!
 -   ASCII Art! Drop a .txt file containing some Picasso material and have FUN! No restart required.
 -   Feed System! For when channel gets dull, brings it back to life!
--   Ip Lookup!
+-   IP Lookup!
 -   Easy to expand and add commands to, very intuitive.
 
 ## Requirements:
