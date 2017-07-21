@@ -728,7 +728,6 @@ while True:
                     bot.send("Please use "+command_character+"help "+cmd, data.channel)
 
             if cmd == "admin":
-                if cmd == "admin":
                 try:
                     if args[1].lower() == "list":
                         if data.sender.nickname not in bot_owner:
