@@ -728,52 +728,57 @@ while True:
                     bot.send("Please use "+command_character+"help "+cmd, data.channel)
 
             if cmd == "admin":
-                if args[1].lower() == "list":
-                    if data.sender.nickname not in bot_owner:
-                        bot.send(prompt_priviledge_required, data.channel)
-                    else:
-                        bot.status(data.sender.nickname)
-                        if user_data.data != None and user_data.data == 3:
-                            bot.send("Admins are: " + str(", ".join(bot_owner)), data.channel)
+                if cmd == "admin":
+                try:
+                    if args[1].lower() == "list":
+                        if data.sender.nickname not in bot_owner:
+                            bot.send(prompt_priviledge_required, data.channel)
                         else:
-                            bot.send(identify_required, data.channel)
-
-                elif args[1].lower() == "remove":
-                    if data.sender.nickname not in bot_owner:
-                        bot.send(prompt_priviledge_required, data.channel)
-
-                    else:
-                        bot.status(data.sender.nickname)
-                        if user_data.data != None and user_data.data == 3:
-                            if args[2] in bot_owner:
-                                f = open("admins.txt", "r")
-                                lines = f.readlines()
-                                f.close()
-                                f = open("admins.txt", "w")
-                                for line in lines:
-                                    if line != args[2] + "\n":
-                                        f.write(line)
-                                bot_owner.remove(args[2])
+                            bot.status(data.sender.nickname)
+                            if user_data.data != None and user_data.data == 3:
+                                bot.send("Admins are: " + str(", ".join(bot_owner)), data.channel)
                             else:
-                                bot.send("Admin doesn't exist!", data.channel)
+                                bot.send(identify_required, data.channel)
+
+                    elif args[1].lower() == "remove":
+                        if data.sender.nickname not in bot_owner:
+                            bot.send(prompt_priviledge_required, data.channel)
+
                         else:
-                            bot.send(identify_required, data.channel)
+                            bot.status(data.sender.nickname)
+                            if user_data.data != None and user_data.data == 3:
+                                if args[2] in bot_owner:
+                                    f = open("admins.txt", "r")
+                                    lines = f.readlines()
+                                    f.close()
+                                    f = open("admins.txt", "w")
+                                    for line in lines:
+                                        if line != args[2] + "\n":
+                                            f.write(line)
+                                    bot_owner.remove(args[2])
+                                else:
+                                    bot.send("Admin doesn't exist!", data.channel)
+                            else:
+                                bot.send(identify_required, data.channel)
 
-                elif args[1].lower() == "add":
-                    if data.sender.nickname not in bot_owner:
-                        bot.send(prompt_priviledge_required, data.channel)
+                    elif args[1].lower() == "add":
+                        if data.sender.nickname not in bot_owner:
+                            bot.send(prompt_priviledge_required, data.channel)
 
+                        else:
+                            bot.status(data.sender.nickname)
+                            if user_data.data != None and user_data.data == 3:
+                                f = open("admins.txt", "a")
+                                f.write(args[2]+"\n")
+                                f.close()
+                                bot_owner.append(args[2])
+                            else:
+                                bot.send(identify_required, data.channel)
                     else:
-                        bot.status(data.sender.nickname)
-                        if user_data.data != None and user_data.data == 3:
-                            f = open("admins.txt", "a")
-                            f.write(args[2]+"\n")
-                            f.close()
-                            bot_owner.append(args[2])
-                        else:
-                            bot.send(identify_required, data.channel)
-                else:
-                    bot.send("Unknown option. Please use "+command_character+"help "+cmd, data.channel)
+                        bot.send("Unknown option. Please use "+command_character+"help "+cmd, data.channel)
+
+                except:
+                    bot.send("Please use "+command_character+"help "+cmd, data.channel)
 
 
             if cmd == "quote":
