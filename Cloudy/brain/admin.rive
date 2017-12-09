@@ -1,0 +1,24 @@
+// To gain botmaster power, say "I am your master"...
++ i am your master
+- Then you must know the secret password:
+
+// And then enter the botmaster password...
++ *
+% then you must know the secret password
+* <star> == keksec69 => Correct password!<set master=true>
+- That's not the right password. :-P
+
+// And after authenticated, let them get the bot's IP address!
++ what is your ip address
+* <get master> == true => My IP address is: <call>myip</call>
+- You're not my master so you don't need to know! :-P
+
+// The object macro that fetches an IP address.
+> object myip perl
+  my ($rs, $args) = @_;
+
+  # Fetch the IP.
+  use LWP::Simple;
+  my $ip = get "http://icanhazip.com";
+  return $ip;
+< object

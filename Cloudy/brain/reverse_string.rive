@@ -1,0 +1,6 @@
++ say * to me in reverse
+- <call>reverse <star></call>
+
+> object reverse python
+  return " ".join(args)[::-1]
+< object

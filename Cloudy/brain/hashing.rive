@@ -1,0 +1,50 @@
+// The object name is "hash", written in Perl
+
+> object hash python
+  import hashlib
+
+  def computeMD5hash(my_string):
+    m = hashlib.md5()
+    m.update(my_string.encode('utf-8'))
+    return m.hexdigest()
+
+  def computeSHA1hash(my_string):
+    m = hashlib.sha1()
+    m.update(my_string.encode('utf-8'))
+    return m.hexdigest()
+
+  if args[0] == "MD5":
+    return computeMD5hash(" ".join(args[1:]))
+
+  elif args[0] == "SHA1":
+      return computeSHA1hash(" ".join(args[1:]))
+
+< object
+
+// You call an object using the <call> tag.
++ what is the md5 hash of *
+- The hash of "<star>" is: <call>hash MD5 <star></call>
+
++ what is the sha1 hash of *
+- The hash of "<star>" is: <call>hash SHA1 <star></call>
+
+> object hashid python
+  import os
+  os.system("hashid " + args[0] + " -o hash.txt")
+
+  with open("hash.txt", "r") as f:
+    return f.read()
+
+< object
+
++ identify *
+- <call>hashid <star></call>
+
+> object base64decode python
+  import base64
+  print(args[0])
+  return base64.b64decode(args[0].strip("\n")).decode()
+< object
+
++ decode *
+- <call>base64decode <star></call>
