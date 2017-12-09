@@ -1,4 +1,4 @@
-# SpamBot
+# SpamBot (Cloudy)
 A "dope af" IRC bot written in Python 3 using sockets.
 
 ## Features:
