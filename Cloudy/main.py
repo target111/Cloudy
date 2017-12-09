@@ -1,6 +1,6 @@
 version = "2.3"
 
-import socket, ssl, time, random, os, sys, feedparser, markovify, pygeoip, wikipedia, re, shodan, string, datetime, requests, json, shelve
+import socket, ssl, time, random, os, sys, feedparser, markovify, pygeoip, wikipedia, shodan, string, datetime, requests, json, shelve
 from threading import Thread
 from enum import Enum
 from os import walk
@@ -953,6 +953,7 @@ while True:
                 arg_index += 1
 
             args.append(arg_temp)
+
 
 
         if ispangram(" ".join(args[0:])):
