@@ -46,24 +46,28 @@ class IRC_Client(object):
     def __init__(self, nickname):
         self.nickname = nickname
 
-    def connect(self, server):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.irc_ssl = ssl.wrap_socket(self.sock)
-        self.irc_ssl.connect((server.address, server.port))
-        self.irc_ssl.setblocking(True)
+    def connect(self, server, use_ssl):
+        if use_ssl:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sock = ssl.wrap_socket(self.sock)
+        else:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        
+        self.sock.connect((server.address, server.port))
+        self.sock.setblocking(True)
 
         self.send_raw("NICK " + self.nickname)
         self.send_raw("USER " + self.nickname + " 0 * :HIIMFUN")
 
         #Respond to initial ping
-        for i in range(2):
-            pingis = self.irc_ssl.recv(9000).decode()
+        for _ in range(2):
+            pingis = self.recieve_raw()
         if pingis.split()[0] == "PING":
             self.send_raw("PONG " + pingis.split()[1][1:])
 
     def send_raw(self, message):
         if not message == "":
-            self.irc_ssl.send((message + "\r\n").encode("UTF-8"))
+            self.sock.send((message + "\r\n").encode("UTF-8"))
 
     def send(self, message, channel):
         self.send_raw("PRIVMSG " + channel + " :" + message)
@@ -84,7 +88,7 @@ class IRC_Client(object):
         self.send_raw("MODE " + nickname + " +" + mode)
 
     def recieve_raw(self):
-        return self.irc_ssl.recv(4096).decode("UTF-8","ignore")
+        return self.sock.recv(4096).decode("UTF-8","ignore")
 
     def recieve(self):
         raw = self.recieve_raw()
