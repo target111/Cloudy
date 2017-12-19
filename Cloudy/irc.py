@@ -265,3 +265,7 @@ class IRC_Mode:
     Bot      = "B"
     Ban      = "b"
     Operator = "a"
+    Mute     = "m"
+    Voice    = "v"
+    Op       = "o"
+    HalfOp   = "h"
