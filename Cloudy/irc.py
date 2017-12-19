@@ -47,11 +47,12 @@ class IRC_Client(object):
         self.nickname = nickname
 
     def connect(self, server, use_ssl):
+
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        #SSL
         if use_ssl:
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock = ssl.wrap_socket(self.sock)
-        else:
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         
         self.sock.connect((server.address, server.port))
         self.sock.setblocking(True)
